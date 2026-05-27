@@ -121,6 +121,36 @@
 				{ headers: headers() }
 			);
 			if (!error) {
+				// Google Sync (Task 4.2)
+				const providerToken = $page.data?.session?.provider_token;
+				if (providerToken) {
+					// 1. Buat di Google Tasks
+					api.api.google.tasks
+						.post(
+							{
+								provider_token: providerToken,
+								title: newTitle.trim(),
+								notes: `Context: ${newContext}`
+							},
+							{ headers: headers() }
+						)
+						.catch(() => {
+							/* silently fail */
+						});
+
+					// 2. Buat di Google Calendar jika ada reminder
+					if (newReminder) {
+						api.api.google.calendar
+							.post(
+								{ provider_token: providerToken, title: newTitle.trim(), datetime: newReminder },
+								{ headers: headers() }
+							)
+							.catch(() => {
+								/* silently fail */
+							});
+					}
+				}
+
 				newTitle = '';
 				newReminder = '';
 				showForm = false;

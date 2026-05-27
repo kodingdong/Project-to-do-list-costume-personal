@@ -13,6 +13,7 @@ import { tasksRoutes } from './features/tasks';
 import { habitsRoutes } from './features/habits';
 import { notesRoutes } from './features/notes';
 import { quotesRoutes } from './features/quotes';
+import { googleSyncRoutes } from './features/google-sync';
 
 // Buat ElysiaJS app utama dengan prefix '/api'
 const app = new Elysia({ prefix: '/api' })
@@ -23,7 +24,8 @@ const app = new Elysia({ prefix: '/api' })
 	.use(tasksRoutes)
 	.use(habitsRoutes)
 	.use(notesRoutes)
-	.use(quotesRoutes);
+	.use(quotesRoutes)
+	.use(googleSyncRoutes);
 
 // Export type untuk Eden Treaty (end-to-end type safety)
 export type App = typeof app;

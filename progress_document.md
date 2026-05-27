@@ -191,7 +191,43 @@
 
 ## 🔵 TAHAP 4: Google Integration & PWA (Minggu 4) — 13 SP
 
-> ⏳ Belum dimulai
+### Task 4.1 — Google OAuth Scopes (SP: 3)
+
+| Item                                  | Status  | Waktu |
+| :------------------------------------ | :------ | :---- |
+| Konfigurasi Google API scopes `tasks` | ✅ DONE | 16:22 |
+| Ambil `provider_token` setelah login  | ✅ DONE | 16:22 |
+
+### Task 4.2 — Sync Engine: Google Tasks & Calendar (SP: 5)
+
+| Item                                                          | Status  | Waktu |
+| :------------------------------------------------------------ | :------ | :---- |
+| Google Sync feature module (`service.ts`, `index.ts`)         | ✅ DONE | 16:22 |
+| API POST `/api/google/tasks`                                  | ✅ DONE | 16:22 |
+| API POST `/api/google/calendar`                               | ✅ DONE | 16:22 |
+| Integrasi saat tambah Task baru (otomatis push ke Google API) | ✅ DONE | 16:25 |
+
+### Task 4.3 — PWA Configuration (SP: 3)
+
+| Item                                    | Status  | Waktu |
+| :-------------------------------------- | :------ | :---- |
+| Install `vite-plugin-pwa`               | ✅ DONE | 16:23 |
+| Konfigurasi `vite.config.ts` (Manifest) | ✅ DONE | 16:25 |
+| Strategi Caching (Network First api)    | ✅ DONE | 16:25 |
+
+### Task 4.4 — Code Review & QA (SP: 1)
+
+| Item                             | Status  | Waktu |
+| :------------------------------- | :------ | :---- |
+| Hapus semua `console.log`        | ✅ DONE | 16:26 |
+| Lulus `bun run lint` tanpa error | ✅ DONE | 16:26 |
+| Build sukses (`bun run build`)   | ✅ DONE | 16:28 |
+
+### Task 4.5 — Git Commit Tahap 4
+
+| Item                                   | Status     | Waktu |
+| :------------------------------------- | :--------- | :---- |
+| Commit & push branch `feature/tahap-4` | ⏳ PENDING | —     |
 
 ---
 
