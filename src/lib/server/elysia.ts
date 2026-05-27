@@ -11,6 +11,8 @@ import { Elysia } from 'elysia';
 import { inboxRoutes } from './features/inbox';
 import { tasksRoutes } from './features/tasks';
 import { habitsRoutes } from './features/habits';
+import { notesRoutes } from './features/notes';
+import { quotesRoutes } from './features/quotes';
 
 // Buat ElysiaJS app utama dengan prefix '/api'
 const app = new Elysia({ prefix: '/api' })
@@ -19,7 +21,9 @@ const app = new Elysia({ prefix: '/api' })
 	// Register feature modules
 	.use(inboxRoutes)
 	.use(tasksRoutes)
-	.use(habitsRoutes);
+	.use(habitsRoutes)
+	.use(notesRoutes)
+	.use(quotesRoutes);
 
 // Export type untuk Eden Treaty (end-to-end type safety)
 export type App = typeof app;

@@ -149,7 +149,45 @@
 
 ## 🟢 TAHAP 3: Notes & Motivation Engine (Minggu 3) — 15 SP
 
-> ⏳ Belum dimulai
+### Task 3.1 — Database: Tabel `notes` & `quotes` (SP: 2)
+
+| Item                                      | Status  | Waktu |
+| :---------------------------------------- | :------ | :---- |
+| SQL migration `create_notes_quotes.sql`   | ✅ DONE | 16:00 |
+| Tabel `notes` + RLS + Auto update trigger | ✅ DONE | 16:00 |
+| Tabel `quotes` + RLS                      | ✅ DONE | 16:00 |
+
+### Task 3.2 — Integrasi TipTap Editor (SP: 5)
+
+| Item                                    | Status  | Waktu |
+| :-------------------------------------- | :------ | :---- |
+| Install `@tiptap/core` & `starter-kit`  | ✅ DONE | 16:01 |
+| `src/lib/components/BlockEditor.svelte` | ✅ DONE | 16:02 |
+| Output JSON format & SSR protection     | ✅ DONE | 16:02 |
+| Toolbar formating & reaktif Svelte 5    | ✅ DONE | 16:02 |
+
+### Task 3.3 — ElysiaJS API + Halaman Notes CRUD (SP: 5)
+
+| Item                                                        | Status  | Waktu |
+| :---------------------------------------------------------- | :------ | :---- |
+| Notes feature module (`model.ts`, `service.ts`, `index.ts`) | ✅ DONE | 16:02 |
+| Notes API: GET, POST, PUT, DELETE `/api/notes`              | ✅ DONE | 16:02 |
+| Halaman `/notes` dengan sidebar & layout editor             | ✅ DONE | 16:03 |
+
+### Task 3.4 — Motivation Engine Widget (SP: 3)
+
+| Item                                                         | Status  | Waktu |
+| :----------------------------------------------------------- | :------ | :---- |
+| Quotes feature module (`model.ts`, `service.ts`, `index.ts`) | ✅ DONE | 16:02 |
+| Quotes API: GET, POST, DELETE `/api/quotes`                  | ✅ DONE | 16:02 |
+| Widget `MotivationWidget.svelte` (Random quotes)             | ✅ DONE | 16:02 |
+| Halaman manajemen `/notes/quotes`                            | ✅ DONE | 16:03 |
+
+### Task 3.5 — Git Commit Tahap 3
+
+| Item                                   | Status     | Waktu |
+| :------------------------------------- | :--------- | :---- |
+| Commit & push branch `feature/tahap-3` | ⏳ PENDING | —     |
 
 ## 🔵 TAHAP 4: Google Integration & PWA (Minggu 4) — 13 SP
 
