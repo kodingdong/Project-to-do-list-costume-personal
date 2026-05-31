@@ -10,31 +10,11 @@
 
 import { Elysia } from 'elysia';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '$env/dynamic/public';
 
-// Environment variables — diambil saat runtime
-const SUPABASE_URL = process.env.PUBLIC_SUPABASE_URL || 'http://localhost:54321';
-const SUPABASE_ANON_KEY = process.env.PUBLIC_SUPABASE_ANON_KEY || '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-/**
- * Plugin Supabase (tanpa auth wajib)
- * Menambahkan db (service role client) ke context.
- * Cocok untuk endpoint publik yang tidak butuh auth.
- */
-export const supabasePlugin = new Elysia({ name: 'supabase' }).derive(({ headers }) => {
-	// Service role client — untuk operasi yang memerlukan bypass RLS
-	const adminDb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-	// User-scoped client — untuk operasi yang mengikuti RLS
-	const token = headers['authorization']?.replace('Bearer ', '');
-	const userDb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-		global: {
-			headers: token ? { Authorization: `Bearer ${token}` } : {}
-		}
-	});
-
-	return { db: userDb, adminDb };
-});
+// Environment variables — diambil saat runtime dari $env/dynamic/public
+const SUPABASE_URL = env.PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+const SUPABASE_ANON_KEY = env.PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
  * Plugin Auth Guard — verifikasi user wajib login

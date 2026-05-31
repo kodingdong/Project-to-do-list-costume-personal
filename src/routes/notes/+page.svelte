@@ -8,12 +8,9 @@
 	import MotivationWidget from '$lib/components/MotivationWidget.svelte';
 	import { resolveRoute } from '$app/paths';
 
-	interface Note {
-		id: string;
-		title: string;
-		body: unknown;
-		updated_at: string;
-	}
+	import type { Note } from '$lib/types';
+	import { getAuthHeaders } from '$lib/utils/auth';
+	import { addToast } from '$lib/stores/toast';
 
 	let notes = $state<Note[]>([]);
 	let isLoading = $state(true);
@@ -23,16 +20,10 @@
 	let newTitle = $state('');
 	let isAdding = $state(false);
 
-	let accessToken = $derived($page.data?.session?.access_token || '');
-
-	function headers() {
-		return { Authorization: `Bearer ${accessToken}` };
-	}
-
 	async function fetchNotes() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.notes.get({ headers: headers() });
+			const { data, error } = await api.api.notes.get({ headers: getAuthHeaders() });
 			if (!error) {
 				notes = (data as Note[]) || [];
 				// Auto-select note pertama jika tidak ada yang dipilih
@@ -51,7 +42,7 @@
 		try {
 			const { data, error } = await api.api.notes.post(
 				{ title: newTitle.trim(), body: {} },
-				{ headers: headers() }
+				{ headers: getAuthHeaders() }
 			);
 			if (!error && data) {
 				newTitle = '';
@@ -64,12 +55,22 @@
 	}
 
 	async function deleteNote(id: string) {
-		const { error } = await api.api.notes({ id }).delete({ headers: headers() });
-		if (!error) {
-			notes = notes.filter((n) => n.id !== id);
-			if (selectedNote?.id === id) {
-				selectedNote = notes.length > 0 ? notes[0] : null;
-			}
+		const oldNotes = [...notes];
+		const oldSelected = selectedNote;
+
+		// Optimistic update
+		notes = notes.filter((n) => n.id !== id);
+		if (selectedNote?.id === id) {
+			selectedNote = notes.length > 0 ? notes[0] : null;
+		}
+
+		const { error } = await api.api.notes({ id }).delete({ headers: getAuthHeaders() });
+		
+		if (error) {
+			// Rollback
+			notes = oldNotes;
+			selectedNote = oldSelected;
+			addToast('Gagal menghapus catatan. Silakan coba lagi.', 'error');
 		}
 	}
 
@@ -77,13 +78,18 @@
 		if (!selectedNote) return;
 
 		// Optimistic UI
+		const oldBody = selectedNote.body;
 		selectedNote.body = json;
 
 		const { error } = await api.api
 			.notes({ id: selectedNote.id })
-			.put({ body: json }, { headers: headers() });
+			.put({ body: json }, { headers: getAuthHeaders() });
 
-		if (!error) {
+		if (error) {
+			// Rollback
+			selectedNote.body = oldBody;
+			addToast('Gagal menyimpan catatan. Silakan coba lagi.', 'error');
+		} else {
 			// Update daftar notes tanpa perlu fetch ulang semua (hanya update_at)
 			selectedNote.updated_at = new Date().toISOString();
 			notes = [...notes]; // Memicu reaktivitas
@@ -132,8 +138,8 @@
 
 		<div class="notes-list">
 			{#if isLoading}
-				<div class="skel"></div>
-				<div class="skel"></div>
+				<div class="note-skel"></div>
+				<div class="note-skel"></div>
 			{:else if !$page.data?.user}
 				<div class="empty-state">
 					<p>Login untuk melihat notes.</p>
@@ -145,12 +151,13 @@
 				</div>
 			{:else}
 				{#each notes as note (note.id)}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="note-item"
 						class:active={selectedNote?.id === note.id}
 						onclick={() => (selectedNote = note)}
+						role="button"
+						tabindex="0"
+						onkeydown={(e) => e.key === 'Enter' && (selectedNote = note)}
 					>
 						<div class="note-info">
 							<p class="note-title">{note.title}</p>
@@ -374,7 +381,7 @@
 		font-size: 13px;
 	}
 
-	.skel {
+	.note-skel {
 		height: 50px;
 		background: var(--bg-input);
 		border-radius: var(--radius-sm);

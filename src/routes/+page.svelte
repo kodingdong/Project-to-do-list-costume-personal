@@ -7,18 +7,14 @@
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
-	// Define the expected shape of our inbox item based on the API schema
-	interface InboxItem {
-		id: string;
-		user_id: string;
-		content: string;
-		type: string;
-		created_at: string;
-	}
+	import type { InboxItem } from '$lib/types';
 
 	let items = $state<InboxItem[]>([]);
 	let isLoading = $state(true);
 	let userData = $derived($page.data?.user);
+
+	import { getAuthHeaders } from '$lib/utils/auth';
+	import { addToast } from '$lib/stores/toast';
 
 	async function fetchItems() {
 		if (!userData) {
@@ -27,9 +23,7 @@
 		}
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.inbox.get({
-				headers: { Authorization: `Bearer ${$page.data?.session?.access_token || ''}` }
-			});
+			const { data, error } = await api.api.inbox.get({ headers: getAuthHeaders() });
 			if (!error) items = (data as InboxItem[]) || [];
 		} catch {
 			/* silently fail */
@@ -39,10 +33,13 @@
 	}
 
 	async function deleteItem(id: string) {
-		await api.api.inbox({ id }).delete({
-			headers: { Authorization: `Bearer ${$page.data?.session?.access_token || ''}` }
-		});
+		const oldItems = [...items];
 		items = items.filter((item) => item.id !== id);
+		const { error } = await api.api.inbox({ id }).delete({ headers: getAuthHeaders() });
+		if (error) {
+			items = oldItems; // rollback
+			addToast('Gagal menghapus item. Silakan coba lagi.', 'error');
+		}
 	}
 
 	function timeAgo(d: string): string {
@@ -131,18 +128,6 @@
 		flex-direction: column;
 		gap: 16px;
 	}
-	.page-header {
-		margin-bottom: 4px;
-	}
-	.page-title {
-		font-size: 24px;
-		font-weight: 800;
-		margin-bottom: 4px;
-	}
-	.page-sub {
-		font-size: 14px;
-		color: var(--text-secondary);
-	}
 	.items-section {
 		display: flex;
 		flex-direction: column;
@@ -157,42 +142,6 @@
 	.sec-title {
 		font-size: 16px;
 		font-weight: 700;
-		color: var(--text-secondary);
-	}
-	.skeletons {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	.skel {
-		height: 72px;
-		background: linear-gradient(
-			90deg,
-			var(--bg-card) 25%,
-			var(--bg-card-hover) 50%,
-			var(--bg-card) 75%
-		);
-		background-size: 200% 100%;
-		animation: shimmer 1.5s infinite;
-		border-radius: var(--radius-lg);
-	}
-	.empty {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
-		padding: 40px 24px;
-		text-align: center;
-	}
-	.empty-ico {
-		font-size: 40px;
-	}
-	.empty-t {
-		font-size: 16px;
-		font-weight: 700;
-	}
-	.empty-d {
-		font-size: 13px;
 		color: var(--text-secondary);
 	}
 	.items-list {

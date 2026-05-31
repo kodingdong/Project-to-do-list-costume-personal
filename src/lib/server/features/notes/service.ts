@@ -46,9 +46,13 @@ export async function updateNote(
 	noteId: string,
 	updates: Record<string, unknown>
 ) {
+	const allowedUpdates: Record<string, unknown> = {};
+	if (updates.title !== undefined) allowedUpdates.title = updates.title;
+	if (updates.body !== undefined) allowedUpdates.body = updates.body;
+
 	const { data, error } = await db
 		.from('notes')
-		.update(updates)
+		.update(allowedUpdates)
 		.eq('id', noteId)
 		.eq('user_id', userId)
 		.select()

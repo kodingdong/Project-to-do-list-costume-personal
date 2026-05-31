@@ -4,11 +4,12 @@
 <script lang="ts">
 	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 
 	let quote = $state<{ content: string; category: string | null } | null>(null);
 	let isLoading = $state(true);
 
-	$effect(() => {
+	onMount(() => {
 		async function fetchRandomQuote() {
 			const token = $page.data?.session?.access_token;
 			if (!token) {

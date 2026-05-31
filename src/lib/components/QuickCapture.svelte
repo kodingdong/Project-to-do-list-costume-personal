@@ -23,6 +23,8 @@
 	// Derived
 	let canSubmit = $derived(content.trim().length > 0 && !isSubmitting);
 
+	import { getAuthHeaders } from '$lib/utils/auth';
+
 	/**
 	 * Submit inbox item via API
 	 */
@@ -33,10 +35,13 @@
 		errorMessage = '';
 
 		try {
-			const { error } = await api.api.inbox.post({
-				content: content.trim(),
-				type: 'text'
-			});
+			const { error } = await api.api.inbox.post(
+				{
+					content: content.trim(),
+					type: 'text'
+				},
+				{ headers: getAuthHeaders() }
+			);
 
 			if (error) {
 				errorMessage = 'Gagal menyimpan. Pastikan kamu sudah login.';

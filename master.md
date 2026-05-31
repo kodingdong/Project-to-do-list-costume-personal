@@ -164,6 +164,8 @@ Product Backlog -> Sprint Backlog -> In Progress -> In Review -> Done
 
 ### 2.6 Definition of Done (DoD)
 
+> Lihat **Seksi 8.4** untuk DoD lengkap yang digunakan di PR process.
+
 - [ ] Kode sudah di-review (minimal 1 reviewer atau AI review)
 - [ ] Unit test ditulis dan passed
 - [ ] Tidak ada linting error
@@ -261,7 +263,53 @@ git push origin main
 # CI/CD pipeline otomatis: lint -> test -> build -> deploy
 ```
 
-### 3.5 Cost Optimization (Free Tier Hosting)
+### 3.5 Containerization (Docker / Podman)
+
+Gunakan container untuk environment development yang konsisten dan reproducible.
+
+```bash
+# Jalankan database lokal via Podman/Docker
+podman run -d \
+  --name postgres-dev \
+  -e POSTGRES_PASSWORD=localpassword \
+  -e POSTGRES_DB=myapp_dev \
+  -p 5432:5432 \
+  postgres:16-alpine
+
+# Atau gunakan podman-compose / docker-compose
+podman-compose up -d
+```
+
+**Contoh `compose.yml`:**
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: localpassword
+      POSTGRES_DB: myapp_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+> **TIP:** Gunakan `podman` sebagai drop-in replacement Docker yang tidak butuh daemon root.
+
+> **⚠️ PODMAN + VS CODE:** Ekstensi Docker resmi di VS Code secara default hanya membaca Docker socket. Untuk Podman, install ekstensi **"Podman Desktop"** atau konfigurasikan:
+> ```bash
+> # Aktifkan Podman socket agar kompatibel dengan ekstensi Docker VS Code
+> podman system service --time=0 &
+> # Set DOCKER_HOST di .env atau shell profile
+> export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
+> ```
+> Alternatif termudah: gunakan **Podman Desktop** (GUI) sebagai pengganti Docker Desktop.
+
+### 3.6 Cost Optimization (Free Tier Hosting)
 
 | Strategi                           | Dampak                             |
 | :--------------------------------- | :--------------------------------- |
@@ -363,6 +411,12 @@ on:
     branches: [main, dev]
   push:
     branches: [main]
+
+# Best practice: batasi permissions token default
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -376,6 +430,11 @@ jobs:
       - run: npm run lint
       - run: npm run test -- --coverage
       - run: npm run build
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
 ```
 
 ### 5.3 Pipeline Stages
@@ -415,6 +474,12 @@ Code Push -> Lint -> Unit Test -> Build -> Integration Test -> Deploy Staging ->
 | E2E         | Happy paths    | Login -> Dashboard -> Aksi utama -> Logout    |
 
 > **PENTING:** Di tahap MVP, fitur berubah sangat cepat. Menulis test terlalu ketat untuk UI/fungsi yang besok bisa dihapus = membuang 50% waktu untuk memperbaiki tes yang rusak. Fokuskan testing pada **critical paths** yang fatal jika error.
+
+> **⚠️ ANTI-PATTERN — Jangan Over-Engineer Testing di Fase Awal:**
+> Setup E2E penuh (Playwright/Cypress) untuk **landing page, proyek validasi ide, atau MVP < 2 minggu** adalah bumerang. Biaya setup + maintenance test > nilai yang didapat. Aturan praktis:
+> - **Landing page / side project kecil** → unit test saja, skip E2E
+> - **MVP aktif dikembangkan** → unit + 1-2 critical path integration test
+> - **Stable product dengan user nyata** → barulah setup E2E penuh
 
 **Fase Production / Mature** - naikkan target:
 
@@ -459,12 +524,13 @@ describe('validateEmail', () => {
 
 ### 7.1 Tool Wajib
 
-| Tool            | Fungsi                           | Config File     |
-| :-------------- | :------------------------------- | :-------------- |
-| **ESLint**      | Mendeteksi error & enforce rules | `.eslintrc.cjs` |
-| **Prettier**    | Auto-format kode                 | `.prettierrc`   |
-| **Husky**       | Git hooks (lint sebelum commit)  | `.husky/`       |
-| **lint-staged** | Lint hanya file yang berubah     | `package.json`  |
+| Tool            | Fungsi                           | Config File                        |
+| :-------------- | :------------------------------- | :--------------------------------- |
+| **ESLint**      | Mendeteksi error & enforce rules | `eslint.config.js` (v9 flat config)|
+| **Prettier**    | Auto-format kode                 | `.prettierrc`                      |
+| **Husky**       | Git hooks (lint sebelum commit)  | `.husky/`                          |
+| **lint-staged** | Lint hanya file yang berubah     | `package.json`                     |
+| **TypeScript**  | Type safety & early error detect | `tsconfig.json`                    |
 
 ### 7.2 Setup Pre-Commit Hooks
 
@@ -501,27 +567,85 @@ Di `package.json`:
 
 ### 8.1 Branching Strategy (Git Flow Simplified)
 
-`main          --o------------------o------------ (production-ready)
+```
+main          --o------------------o------------ (production-ready)
                 |                  ^
 dev           --o---o---o---o-----o------------ (integration)
                     |       ^
 feature/auth  -----o---o---o                    (fitur spesifik)
-hotfix/bug-x  ----------------------o---o--- main (perbaikan darurat)`
+hotfix/bug-x  ----------------------o---o------- main (perbaikan darurat)
+```
 
-| Branch    | Tujuan                        | Siapa yang Push    |
-| :-------- | :---------------------------- | :----------------- |
-| main      | Production - kode stabil      | Hanya via merge/PR |
-| dev       | Integrasi fitur sebelum rilis | Hanya via merge/PR |
-| eature/\* | Fitur baru                    | Developer          |
-| hotfix/\* | Perbaikan darurat             | Developer senior   |
+| Branch       | Tujuan                        | Siapa yang Push    |
+| :----------- | :---------------------------- | :----------------- |
+| `main`       | Production - kode stabil      | Hanya via merge/PR |
+| `dev`        | Integrasi fitur sebelum rilis | Hanya via merge/PR |
+| `feature/*`  | Fitur baru                    | Developer          |
+| `hotfix/*`   | Perbaikan darurat             | Developer senior   |
+| `chore/*`    | Update deps, refactor minor   | Developer          |
 
-### 8.2 Pull Request (PR) Process
+### 8.2 Conventional Commits
 
-**Setiap merge ke dev atau main WAJIB melalui Pull Request.**
+Standar pesan commit yang digunakan Google, Angular, dan mayoritas OSS modern.
 
-### 8.3 Definition of Done (DoD)
+**Format:** `<type>(<scope>): <deskripsi singkat>`
 
-- [ ] Kode sudah di-review (minimal 1 reviewer)
+| Type       | Kapan Digunakan                          | Contoh                                      |
+| :--------- | :--------------------------------------- | :------------------------------------------ |
+| `feat`     | Fitur baru                               | `feat(auth): add google oauth login`        |
+| `fix`      | Bug fix                                  | `fix(api): handle null user response`       |
+| `docs`     | Perubahan dokumentasi                    | `docs: update README setup guide`           |
+| `style`    | Formatting, tanpa ubah logika            | `style: format with prettier`               |
+| `refactor` | Refactor kode tanpa fitur/fix baru       | `refactor(db): simplify query builder`      |
+| `test`     | Tambah atau perbaiki test                | `test(auth): add unit test for login flow`  |
+| `chore`    | Update deps, config, build               | `chore: bump vite to v5.2`                  |
+| `perf`     | Peningkatan performa                     | `perf(image): lazy load hero images`        |
+| `ci`       | Perubahan CI/CD config                   | `ci: add coverage upload step`              |
+| `revert`   | Revert commit sebelumnya                 | `revert: feat(auth): add google oauth login`|
+
+> **BREAKING CHANGE:** Tambahkan `!` setelah type atau footer `BREAKING CHANGE:` untuk perubahan yang tidak backward compatible.
+> Contoh: `feat(api)!: remove deprecated /v1/users endpoint`
+
+**Aturan tambahan:**
+- Gunakan huruf kecil semua
+- Jangan diakhiri titik
+- Max 72 karakter untuk subject line
+- Tag `[skip ci]` untuk commit backup harian
+
+### 8.3 Pull Request Process
+
+**Setiap merge ke `dev` atau `main` WAJIB melalui Pull Request.**
+
+Buat file `.github/pull_request_template.md`:
+
+```markdown
+## Deskripsi
+<!-- Jelaskan perubahan apa yang dilakukan dan mengapa -->
+
+## Jenis Perubahan
+- [ ] feat: Fitur baru
+- [ ] fix: Bug fix
+- [ ] refactor: Refactoring
+- [ ] docs: Update dokumentasi
+- [ ] chore: Update dependencies/config
+
+## Checklist
+- [ ] Kode sudah di-review sendiri (self-review)
+- [ ] Semua test passed (`npm test`)
+- [ ] Tidak ada linting error (`npm run lint`)
+- [ ] Dokumentasi/README diupdate (jika ada perubahan API)
+- [ ] Screenshot / recording dilampirkan (jika ada perubahan UI)
+
+## Screenshot (jika ada perubahan UI)
+<!-- Tempel screenshot sebelum/sesudah di sini -->
+
+## Issue yang Diselesaikan
+Closes #
+```
+
+### 8.4 Definition of Done (DoD)
+
+- [ ] Kode sudah di-review (minimal 1 reviewer atau AI review)
 - [ ] Semua test passed (unit + integration)
 - [ ] Tidak ada linting error
 - [ ] Dokumentasi diupdate (jika ada perubahan API)
@@ -537,7 +661,7 @@ hotfix/bug-x  ----------------------o---o--- main (perbaikan darurat)`
 | :-------------- | :--------------------- | :-------------- | :------------- |
 | **Development** | Coding harian          | localhost:5173  | Supabase lokal |
 | **Staging**     | Testing pre-production | staging.app.com | DB staging     |
-| **Production**  | Live untuk user        | pp.com          | DB production  |
+| **Production**  | Live untuk user        | app.com         | DB production  |
 
 ### 9.2 Environment Variables
 
@@ -553,12 +677,15 @@ hotfix/bug-x  ----------------------o---o--- main (perbaikan darurat)`
 
 ### 9.3 Contoh .env.example
 
-`ash
+```bash
+# Supabase
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+
+# App
 VITE_APP_NAME=
 VITE_ENABLE_ANALYTICS=false
-`
+```
 
 ---
 
@@ -575,23 +702,55 @@ VITE_ENABLE_ANALYTICS=false
 
 ### 10.2 Secret Management
 
-| Jangan                | Lakukan                        |
-| :-------------------- | :----------------------------- |
-| Hardcode API key      | Gunakan environment variables  |
-| Commit .env           | Tambahkan .env\* ke .gitignore |
-| Share secret via chat | Gunakan secret manager         |
+| Jangan                | Lakukan                                    |
+| :-------------------- | :----------------------------------------- |
+| Hardcode API key      | Gunakan environment variables              |
+| Commit .env           | Tambahkan `.env*` ke `.gitignore`          |
+| Share secret via chat | Gunakan secret manager (GitHub Secrets)    |
+| Satu secret semua env | Pisahkan secret per environment            |
+
+### 10.3 Automated Dependency Updates
+
+Aktifkan **Dependabot** untuk update dependency otomatis.
+
+Buat file `.github/dependabot.yml`:
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        patterns:
+          - "eslint*"
+          - "prettier*"
+          - "vitest*"
+          - "@types/*"
+```
+
+> Dependabot akan membuat PR otomatis setiap minggu untuk update deps — cukup review dan merge.
 
 ---
 
 ## 11. Monitoring & Observability
 
+> **⚠️ KAPAN MULAI SETUP MONITORING:**
+> Jangan setup Sentry + Logging stack di hari pertama. Ini adalah **premature optimization** yang memakan waktu setup signifikan.
+> - **Fase MVP / proyek < 1 bulan** → Lighthouse saja (gratis, built-in browser/CI)
+> - **Saat ada user nyata (> 10 pengguna aktif)** → tambah Sentry free tier
+> - **Saat traffic signifikan** → tambah LogTail/Axiom untuk log aggregation
+
 ### 11.1 Tiga Pilar
 
-| Pilar              | Tool           | Tujuan                        |
-| :----------------- | :------------- | :---------------------------- |
-| **Error Tracking** | Sentry         | Error di production real-time |
-| **Logging**        | LogTail, Axiom | Log untuk debugging           |
-| **Performance**    | Lighthouse     | Kecepatan & performa          |
+| Pilar              | Tool           | Kapan Mulai          | Tujuan                        |
+| :----------------- | :------------- | :------------------- | :---------------------------- |
+| **Performance**    | Lighthouse     | Sejak awal (gratis)  | Kecepatan & performa          |
+| **Error Tracking** | Sentry         | Ada user nyata       | Error di production real-time |
+| **Logging**        | LogTail, Axiom | Traffic signifikan   | Log untuk debugging           |
 
 ### 11.2 Performance Budgets
 
@@ -605,12 +764,13 @@ VITE_ENABLE_ANALYTICS=false
 
 ### 11.3 Rollback
 
-`ash
+```bash
+# Option 1: Revert via Git
 git revert HEAD && git push origin main
 
-# Atau rollback via dashboard Vercel/Netlify
-
-`
+# Option 2: Rollback via dashboard Vercel/Netlify
+# Dashboard -> Deployments -> pilih versi sebelumnya -> Redeploy
+```
 
 ---
 
@@ -618,22 +778,69 @@ git revert HEAD && git push origin main
 
 ### 12.1 Dokumen Wajib
 
-| Dokumen          | Isi                            |
-| :--------------- | :----------------------------- |
-| **README.md**    | Setup guide, tech stack        |
-| **CHANGELOG.md** | Riwayat perubahan per versi    |
-| **ADR**          | Architecture Decision Records  |
-| **.env.example** | Template environment variables |
+| Dokumen              | Isi                                          |
+| :------------------- | :------------------------------------------- |
+| **README.md**        | Setup guide, tech stack, cara kontribusi     |
+| **CHANGELOG.md**     | Riwayat perubahan per versi (Keep a Changelog)|
+| **ADR**              | Architecture Decision Records                |
+| **.env.example**     | Template environment variables               |
+| **docs/api.md**      | Dokumentasi API endpoints                    |
 
-### 12.2 Semantic Versioning
+### 12.2 Format CHANGELOG (Keep a Changelog)
 
-Format: MAJOR.MINOR.PATCH
+Ikuti standar [keepachangelog.com](https://keepachangelog.com):
 
-| Komponen  | Kapan Naik                      |
-| :-------- | :------------------------------ |
-| **MAJOR** | Breaking changes                |
-| **MINOR** | Fitur baru, backward compatible |
-| **PATCH** | Bug fix                         |
+```markdown
+# Changelog
+
+## [Unreleased]
+### Added
+- Fitur baru yang belum dirilis
+
+## [1.2.0] - 2026-05-30
+### Added
+- Login dengan Google OAuth
+### Fixed
+- Bug pada validasi form email
+### Changed
+- Refactor komponen Navbar
+
+## [1.1.0] - 2026-05-15
+### Added
+- Fitur dark mode
+```
+
+### 12.3 ADR Template
+
+Simpan di `docs/adr/NNN-judul-keputusan.md`:
+
+```markdown
+# ADR-001: Pilihan Database - Supabase vs PlanetScale
+
+**Status:** Accepted
+**Tanggal:** 2026-05-30
+
+## Konteks
+Proyek butuh database managed dengan auth built-in.
+
+## Keputusan
+Menggunakan Supabase karena RLS, auth, dan realtime bawaan.
+
+## Konsekuensi
+- ✅ Auth dan RLS terintegrasi
+- ✅ Realtime subscriptions built-in
+- ❌ Vendor lock-in ke Supabase
+```
+
+### 12.4 Semantic Versioning
+
+Format: `MAJOR.MINOR.PATCH`
+
+| Komponen  | Kapan Naik                      | Contoh                     |
+| :-------- | :------------------------------ | :------------------------- |
+| **MAJOR** | Breaking changes                | `1.0.0` → `2.0.0`         |
+| **MINOR** | Fitur baru, backward compatible | `1.0.0` → `1.1.0`         |
+| **PATCH** | Bug fix                         | `1.0.0` → `1.0.1`         |
 
 ---
 
@@ -644,38 +851,43 @@ Format: MAJOR.MINOR.PATCH
 - [ ] SRS dan daftar fitur MVP selesai
 - [ ] Skema database dan ERD selesai
 - [ ] Environment lokal berjalan
-- [ ] Git repo dengan branch main dan dev
-- [ ] .env.example dibuat sebagai template
+- [ ] Git repo dengan branch `main` dan `dev`
+- [ ] `.env.example` dibuat sebagai template
 - [ ] ESLint + Prettier + Husky terkonfigurasi
-- [ ] CI/CD pipeline ter-setup
-- [ ] PR template dibuat
+- [ ] TypeScript dikonfigurasi (`tsconfig.json`)
+- [ ] CI/CD pipeline ter-setup (`.github/workflows/ci.yml`)
+- [ ] PR template dibuat (`.github/pull_request_template.md`)
+- [ ] Dependabot dikonfigurasi (`.github/dependabot.yml`)
+- [ ] `compose.yml` untuk database lokal siap
 - [ ] README.md berisi setup guide
+- [ ] `docs/adr/` folder disiapkan untuk Architecture Decision Records
 
 ### Checklist Harian
 
-- [ ] Berada di branch yang benar (bukan main)
-- [ ] Backend lokal menyala
+- [ ] Berada di branch yang benar (bukan `main`)
+- [ ] Container database lokal menyala (`podman-compose up -d`)
 - [ ] Frontend dev server aktif
-- [ ] Unit test untuk kode baru
-- [ ] Kode lolos lint
-- [ ] Commit akhir hari dengan [skip ci]
+- [ ] Unit test untuk kode baru ditulis
+- [ ] Kode lolos lint (`npm run lint`)
+- [ ] Commit menggunakan Conventional Commits format (`feat:`, `fix:`, dll)
+- [ ] Commit akhir hari dengan `[skip ci]`
 - [ ] Push ke remote untuk backup
 
 ### Checklist Pre-Deployment
 
 - [ ] Semua fitur tested di localhost
 - [ ] Unit test coverage sesuai fase (MVP: >= 40%, Mature: >= 80%)
-- [ ] Code review selesai
-- [ ] `npm audit` bersih
+- [ ] Code review selesai (via PR)
+- [ ] `npm audit` bersih (tidak ada vulnerabilities high/critical)
 - [ ] Lighthouse score >= 90
-- [ ] CHANGELOG.md diupdate
-- [ ] PR merged ke main
+- [ ] CHANGELOG.md diupdate (format Keep a Changelog)
+- [ ] PR merged ke `main`
 
 ### Checklist Post-Deployment
 
 - [ ] Aplikasi accessible di production
 - [ ] SSL/HTTPS aktif
-- [ ] Error monitoring aktif
+- [ ] Error monitoring aktif (Sentry)
 - [ ] Performance metrics sesuai target
 - [ ] Rollback plan siap
 
@@ -683,9 +895,11 @@ Format: MAJOR.MINOR.PATCH
 
 - [ ] `npm audit` dijalankan
 - [ ] Tidak ada secret di source code
+- [ ] `.env*` ada di `.gitignore`
 - [ ] RLS policies aktif
 - [ ] Input validation aktif
-- [ ] Dependency di-update
+- [ ] Dependabot aktif untuk update dependency otomatis
+- [ ] GitHub Actions menggunakan `permissions` yang dibatasi
 
 ---
 
@@ -693,4 +907,4 @@ Format: MAJOR.MINOR.PATCH
 
 ---
 
-_Dibuat: 20 Mei 2026 | Versi: 2.0 - Industry-Grade Edition_
+_Dibuat: 20 Mei 2026 | Diperbarui: 30 Mei 2026 | Versi: 2.1 - Best Practice Aligned_

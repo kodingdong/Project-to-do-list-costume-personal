@@ -10,8 +10,8 @@
 
 import { api } from '$lib/eden';
 
-// Set untuk melacak task yang sudah dinotifikasi (mencegah duplikat)
-const notifiedTaskIds = new Set<string>();
+// Set untuk melacak task yang sudah dinotifikasi dan timestampnya (mencegah duplikat & leak)
+const notifiedTaskIds = new Map<string, number>();
 
 // Interval ID untuk cleanup
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -61,7 +61,7 @@ function showNotification(title: string, body: string) {
  */
 async function checkReminders(accessToken: string) {
 	try {
-		const { data, error } = await api.api.tasks.get({
+		const { data, error } = await api.api.tasks.reminders.get({
 			headers: { Authorization: `Bearer ${accessToken}` }
 		});
 
@@ -69,6 +69,13 @@ async function checkReminders(accessToken: string) {
 
 		const now = Date.now();
 		const FIVE_MINUTES = 5 * 60 * 1000;
+
+		// Cleanup mem leak: Hapus task yang sudah dinotifikasi > 1 jam lalu
+		for (const [taskId, time] of notifiedTaskIds.entries()) {
+			if (now - time > 60 * 60 * 1000) {
+				notifiedTaskIds.delete(taskId);
+			}
+		}
 
 		for (const task of data as TaskWithReminder[]) {
 			// Skip jika tidak ada reminder, sudah selesai, atau sudah dinotifikasi
@@ -80,7 +87,7 @@ async function checkReminders(accessToken: string) {
 			// Notifikasi jika waktu reminder dalam 5 menit ke depan atau sudah lewat (max 5 menit lalu)
 			if (diff <= FIVE_MINUTES && diff >= -FIVE_MINUTES) {
 				showNotification('⏰ Pengingat Task', `${task.title}\n${task.context || ''}`);
-				notifiedTaskIds.add(task.id);
+				notifiedTaskIds.set(task.id, now);
 			}
 		}
 	} catch {
