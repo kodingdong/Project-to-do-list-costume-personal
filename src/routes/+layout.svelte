@@ -12,6 +12,7 @@
 	import { browser } from '$app/environment';
 	import type { Snippet } from 'svelte';
 	import { startReminders, stopReminders } from '$lib/utils/reminder';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -107,6 +108,8 @@
 	<!-- No nav (login page atau belum login) -->
 	{@render children()}
 {/if}
+
+<ToastContainer />
 
 <style>
 	/* ===== Header ===== */

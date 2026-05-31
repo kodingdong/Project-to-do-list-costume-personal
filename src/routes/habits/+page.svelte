@@ -15,16 +15,9 @@
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
-	// ===== Types =====
-	interface Habit {
-		id: string;
-		user_id: string;
-		title: string;
-		streak_count: number;
-		last_completed: string | null;
-		is_done_today: boolean;
-		created_at: string;
-	}
+	import type { Habit } from '$lib/types';
+	import { getAuthHeaders } from '$lib/utils/auth';
+	import { addToast } from '$lib/stores/toast';
 
 	// ===== State =====
 	let habits = $state<Habit[]>([]);
@@ -33,8 +26,7 @@
 	let newTitle = $state('');
 	let isSubmitting = $state(false);
 
-	// Auth
-	let accessToken = $derived($page.data?.session?.access_token || '');
+	// Auth (via utility)
 
 	// ===== Derived =====
 	let doneCount = $derived(habits.filter((h) => h.is_done_today).length);
@@ -72,15 +64,10 @@
 		return '💤';
 	}
 
-	// ===== Functions =====
-	function headers() {
-		return { Authorization: `Bearer ${accessToken}` };
-	}
-
 	async function fetchHabits() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.habits.get({ headers: headers() });
+			const { data, error } = await api.api.habits.get({ headers: getAuthHeaders() });
 			if (!error) habits = (data as Habit[]) || [];
 		} catch {
 			/* silently fail */
@@ -95,7 +82,7 @@
 		try {
 			const { error } = await api.api.habits.post(
 				{ title: newTitle.trim() },
-				{ headers: headers() }
+				{ headers: getAuthHeaders() }
 			);
 			if (!error) {
 				newTitle = '';
@@ -108,6 +95,8 @@
 	}
 
 	async function toggleHabit(habit: Habit) {
+		const oldStatus = habit.is_done_today;
+		const oldStreak = habit.streak_count;
 		const newStatus = !habit.is_done_today;
 		// Optimistic update
 		habit.is_done_today = newStatus;
@@ -117,10 +106,15 @@
 
 		const { data, error } = await api.api
 			.habits({ id: habit.id })
-			.put({ is_done_today: newStatus }, { headers: headers() });
+			.put({ is_done_today: newStatus }, { headers: getAuthHeaders() });
 
-		// Sync dengan response server (trigger mungkin mengubah streak)
-		if (!error && data) {
+		if (error) {
+			// Rollback
+			habit.is_done_today = oldStatus;
+			habit.streak_count = oldStreak;
+			addToast('Gagal mengubah status habit. Silakan coba lagi.', 'error');
+		} else if (data) {
+			// Sync dengan response server (trigger mungkin mengubah streak)
 			const serverHabit = data as Habit;
 			habit.streak_count = serverHabit.streak_count;
 			habit.last_completed = serverHabit.last_completed;
@@ -129,8 +123,13 @@
 	}
 
 	async function deleteHabit(habitId: string) {
+		const oldHabits = [...habits];
 		habits = habits.filter((h) => h.id !== habitId);
-		await api.api.habits({ id: habitId }).delete({ headers: headers() });
+		const { error } = await api.api.habits({ id: habitId }).delete({ headers: getAuthHeaders() });
+		if (error) {
+			habits = oldHabits; // rollback
+			addToast('Gagal menghapus habit. Silakan coba lagi.', 'error');
+		}
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -330,17 +329,6 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		gap: 12px;
-	}
-
-	.page-title {
-		font-size: 24px;
-		font-weight: 800;
-		margin-bottom: 4px;
-	}
-
-	.page-sub {
-		font-size: 14px;
-		color: var(--text-secondary);
 	}
 
 	.add-btn {
@@ -562,62 +550,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-	}
-
-	.skeletons {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.skel {
-		height: 72px;
-		background: linear-gradient(
-			90deg,
-			var(--bg-card) 25%,
-			var(--bg-card-hover) 50%,
-			var(--bg-card) 75%
-		);
-		background-size: 200% 100%;
-		animation: shimmer 1.5s infinite;
-		border-radius: var(--radius-lg);
-	}
-
-	.empty {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
-		padding: 40px 24px;
-		text-align: center;
-	}
-
-	.empty-ico {
-		font-size: 40px;
-	}
-
-	.empty-t {
-		font-size: 16px;
-		font-weight: 700;
-	}
-
-	.empty-d {
-		font-size: 13px;
-		color: var(--text-secondary);
-	}
-
-	.spinner {
-		width: 16px;
-		height: 16px;
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		border-top-color: white;
-		border-radius: 50%;
-		animation: spin 0.6s linear infinite;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
 	}
 </style>

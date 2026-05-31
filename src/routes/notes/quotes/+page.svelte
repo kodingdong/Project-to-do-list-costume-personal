@@ -6,11 +6,9 @@
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
-	interface Quote {
-		id: string;
-		content: string;
-		category: string | null;
-	}
+	import type { Quote } from '$lib/types';
+	import { getAuthHeaders } from '$lib/utils/auth';
+	import { addToast } from '$lib/stores/toast';
 
 	let quotes = $state<Quote[]>([]);
 	let isLoading = $state(true);
@@ -21,16 +19,10 @@
 
 	const categories = ['finansial', 'coding', 'motivasi', 'public speaking', 'bahasa inggris'];
 
-	let accessToken = $derived($page.data?.session?.access_token || '');
-
-	function headers() {
-		return { Authorization: `Bearer ${accessToken}` };
-	}
-
 	async function fetchQuotes() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.quotes.get({ headers: headers() });
+			const { data, error } = await api.api.quotes.get({ headers: getAuthHeaders() });
 			if (!error) quotes = (data as Quote[]) || [];
 		} finally {
 			isLoading = false;
@@ -46,7 +38,7 @@
 					content: newContent.trim(),
 					category: newCategory
 				},
-				{ headers: headers() }
+				{ headers: getAuthHeaders() }
 			);
 
 			if (!error) {
@@ -59,9 +51,16 @@
 	}
 
 	async function deleteQuote(id: string) {
-		const { error } = await api.api.quotes({ id }).delete({ headers: headers() });
-		if (!error) {
-			quotes = quotes.filter((q) => q.id !== id);
+		const oldQuotes = [...quotes];
+		
+		// Optimistic update
+		quotes = quotes.filter((q) => q.id !== id);
+		
+		const { error } = await api.api.quotes({ id }).delete({ headers: getAuthHeaders() });
+		
+		if (error) {
+			quotes = oldQuotes;
+			addToast('Gagal menghapus quote. Silakan coba lagi.', 'error');
 		}
 	}
 
@@ -175,16 +174,6 @@
 		padding: 4px 8px;
 	}
 
-	.page-title {
-		font-size: 24px;
-		font-weight: 800;
-	}
-
-	.page-sub {
-		font-size: 14px;
-		color: var(--text-secondary);
-	}
-
 	.add-form {
 		padding: 24px;
 		display: flex;
@@ -290,35 +279,9 @@
 		gap: 8px;
 	}
 
-	.empty-icon {
-		font-size: 40px;
-	}
-
 	.desc {
 		font-size: 13px;
 		color: var(--text-muted);
-	}
-
-	.skel {
-		height: 120px;
-		background: var(--bg-input);
-		border-radius: var(--radius-sm);
-		animation: shimmer 1.5s infinite;
-	}
-
-	.spinner {
-		width: 16px;
-		height: 16px;
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		border-top-color: white;
-		border-radius: 50%;
-		animation: spin 0.6s linear infinite;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
 	}
 
 	@media (max-width: 600px) {

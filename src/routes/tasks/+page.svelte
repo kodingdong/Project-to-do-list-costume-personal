@@ -15,25 +15,9 @@
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
-	// ===== Types =====
-	interface SubTask {
-		id: string;
-		task_id: string;
-		title: string;
-		is_completed: boolean;
-	}
-
-	interface Task {
-		id: string;
-		user_id: string;
-		title: string;
-		context: string;
-		energy_level: string;
-		is_completed: boolean;
-		reminder_at: string | null;
-		created_at: string;
-		sub_tasks: SubTask[];
-	}
+	import type { Task, SubTask } from '$lib/types';
+	import { getAuthHeaders } from '$lib/utils/auth';
+	import { addToast } from '$lib/stores/toast';
 
 	// ===== State =====
 	let tasks = $state<Task[]>([]);
@@ -57,19 +41,18 @@
 	let filterEnergy = $state('all');
 	let filterStatus = $state('all');
 
-	// Auth
-	let accessToken = $derived($page.data?.session?.access_token || '');
+	// Auth (via utility)
 
 	// ===== Derived =====
-	let filteredTasks = $derived(() => {
-		return tasks.filter((t) => {
+	let filteredTasks = $derived(
+		tasks.filter((t) => {
 			if (filterContext !== 'all' && t.context !== filterContext) return false;
 			if (filterEnergy !== 'all' && t.energy_level !== filterEnergy) return false;
 			if (filterStatus === 'active' && t.is_completed) return false;
 			if (filterStatus === 'done' && !t.is_completed) return false;
 			return true;
-		});
-	});
+		})
+	);
 
 	let totalActive = $derived(tasks.filter((t) => !t.is_completed).length);
 	let totalDone = $derived(tasks.filter((t) => t.is_completed).length);
@@ -90,15 +73,10 @@
 		'@Errand': '🏃'
 	};
 
-	// ===== Functions =====
-	function headers() {
-		return { Authorization: `Bearer ${accessToken}` };
-	}
-
 	async function fetchTasks() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.tasks.get({ headers: headers() });
+			const { data, error } = await api.api.tasks.get({ headers: getAuthHeaders() });
 			if (!error) tasks = (data as Task[]) || [];
 		} catch {
 			/* silently fail */
@@ -118,7 +96,7 @@
 					energy_level: newEnergy,
 					reminder_at: newReminder || null
 				},
-				{ headers: headers() }
+				{ headers: getAuthHeaders() }
 			);
 			if (!error) {
 				// Google Sync (Task 4.2)
@@ -128,11 +106,10 @@
 					api.api.google.tasks
 						.post(
 							{
-								provider_token: providerToken,
 								title: newTitle.trim(),
 								notes: `Context: ${newContext}`
 							},
-							{ headers: headers() }
+							{ headers: { ...getAuthHeaders(), 'x-provider-token': providerToken } }
 						)
 						.catch(() => {
 							/* silently fail */
@@ -142,8 +119,8 @@
 					if (newReminder) {
 						api.api.google.calendar
 							.post(
-								{ provider_token: providerToken, title: newTitle.trim(), datetime: newReminder },
-								{ headers: headers() }
+								{ title: newTitle.trim(), datetime: newReminder },
+								{ headers: { ...getAuthHeaders(), 'x-provider-token': providerToken } }
 							)
 							.catch(() => {
 								/* silently fail */
@@ -162,21 +139,31 @@
 	}
 
 	async function toggleTask(task: Task) {
+		const oldStatus = task.is_completed;
 		const newStatus = !task.is_completed;
 		task.is_completed = newStatus;
-		await api.api.tasks({ id: task.id }).put({ is_completed: newStatus }, { headers: headers() });
+		const { error } = await api.api.tasks({ id: task.id }).put({ is_completed: newStatus }, { headers: getAuthHeaders() });
+		if (error) {
+			task.is_completed = oldStatus; // rollback
+			addToast('Gagal mengubah status task. Silakan coba lagi.', 'error');
+		}
 	}
 
 	async function deleteTask(taskId: string) {
+		const oldTasks = [...tasks];
 		tasks = tasks.filter((t) => t.id !== taskId);
-		await api.api.tasks({ id: taskId }).delete({ headers: headers() });
+		const { error } = await api.api.tasks({ id: taskId }).delete({ headers: getAuthHeaders() });
+		if (error) {
+			tasks = oldTasks; // rollback
+			addToast('Gagal menghapus task. Silakan coba lagi.', 'error');
+		}
 	}
 
 	async function addSubTask(taskId: string) {
 		if (!newSubTaskTitle.trim()) return;
 		const { data, error } = await api.api
 			.tasks({ id: taskId })
-			.subtasks.post({ title: newSubTaskTitle.trim() }, { headers: headers() });
+			.subtasks.post({ title: newSubTaskTitle.trim() }, { headers: getAuthHeaders() });
 		if (!error && data) {
 			const task = tasks.find((t) => t.id === taskId);
 			if (task) task.sub_tasks = [...(task.sub_tasks || []), data as SubTask];
@@ -186,17 +173,30 @@
 	}
 
 	async function toggleSubTask(subTask: SubTask) {
+		const oldStatus = subTask.is_completed;
 		const newStatus = !subTask.is_completed;
 		subTask.is_completed = newStatus;
-		await api.api.tasks
+		const { error } = await api.api.tasks
 			.subtasks({ id: subTask.id })
-			.put({ is_completed: newStatus }, { headers: headers() });
+			.put({ is_completed: newStatus }, { headers: getAuthHeaders() });
+		if (error) {
+			subTask.is_completed = oldStatus; // rollback
+			addToast('Gagal mengubah status sub-task. Silakan coba lagi.', 'error');
+		}
 	}
 
 	async function deleteSubTask(taskId: string, subTaskId: string) {
 		const task = tasks.find((t) => t.id === taskId);
-		if (task) task.sub_tasks = task.sub_tasks.filter((s) => s.id !== subTaskId);
-		await api.api.tasks.subtasks({ id: subTaskId }).delete({ headers: headers() });
+		let oldSubTasks: SubTask[] = [];
+		if (task) {
+			oldSubTasks = [...(task.sub_tasks || [])];
+			task.sub_tasks = (task.sub_tasks || []).filter((s) => s.id !== subTaskId);
+		}
+		const { error } = await api.api.tasks.subtasks({ id: subTaskId }).delete({ headers: getAuthHeaders() });
+		if (error && task) {
+			task.sub_tasks = oldSubTasks; // rollback
+			addToast('Gagal menghapus sub-task. Silakan coba lagi.', 'error');
+		}
 	}
 
 	function getProgress(task: Task): number {
@@ -363,7 +363,7 @@
 				<p class="empty-t">Login untuk mulai</p>
 				<a href={resolveRoute('/login', {})} class="btn btn-primary">Login</a>
 			</div>
-		{:else if filteredTasks().length === 0}
+		{:else if filteredTasks.length === 0}
 			<div class="empty glass-card">
 				<span class="empty-ico">{tasks.length === 0 ? '📝' : '🔍'}</span>
 				<p class="empty-t">{tasks.length === 0 ? 'Belum ada task' : 'Tidak ada task yang cocok'}</p>
@@ -372,7 +372,7 @@
 				</p>
 			</div>
 		{:else}
-			{#each filteredTasks() as task, i (task.id)}
+			{#each filteredTasks as task, i (task.id)}
 				{@const progress = getProgress(task)}
 				<div
 					class="task-card glass-card animate-fade-in"
@@ -518,17 +518,6 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		gap: 12px;
-	}
-
-	.page-title {
-		font-size: 24px;
-		font-weight: 800;
-		margin-bottom: 4px;
-	}
-
-	.page-sub {
-		font-size: 14px;
-		color: var(--text-secondary);
 	}
 
 	.add-btn {
@@ -853,63 +842,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-	}
-
-	.skeletons {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.skel {
-		height: 100px;
-		background: linear-gradient(
-			90deg,
-			var(--bg-card) 25%,
-			var(--bg-card-hover) 50%,
-			var(--bg-card) 75%
-		);
-		background-size: 200% 100%;
-		animation: shimmer 1.5s infinite;
-		border-radius: var(--radius-lg);
-	}
-
-	.empty {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
-		padding: 40px 24px;
-		text-align: center;
-	}
-
-	.empty-ico {
-		font-size: 40px;
-	}
-
-	.empty-t {
-		font-size: 16px;
-		font-weight: 700;
-	}
-
-	.empty-d {
-		font-size: 13px;
-		color: var(--text-secondary);
-	}
-
-	.spinner {
-		width: 16px;
-		height: 16px;
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		border-top-color: white;
-		border-radius: 50%;
-		animation: spin 0.6s linear infinite;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
 	}
 
 	@media (max-width: 420px) {
