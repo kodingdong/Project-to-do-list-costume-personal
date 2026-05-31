@@ -31,7 +31,8 @@ import {
 	getSubTasks,
 	addSubTask,
 	toggleSubTask,
-	deleteSubTask
+	deleteSubTask,
+	getReminders
 } from './service';
 
 export const tasksRoutes = new Elysia({ prefix: '/tasks' })
@@ -58,6 +59,11 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 		},
 		{ body: CreateTaskSchema }
 	)
+
+	// GET /api/tasks/reminders — Ambil reminders
+	.get('/reminders', async ({ db, user }) => {
+		return await getReminders(db, user.id);
+	})
 
 	// PUT /api/tasks/:id — Update task
 	.put(

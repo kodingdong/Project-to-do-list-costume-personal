@@ -26,6 +26,22 @@ export async function getTasks(db: SupabaseClient, userId: string) {
 }
 
 /**
+ * Ambil tasks dengan reminder (belum selesai)
+ */
+export async function getReminders(db: SupabaseClient, userId: string) {
+	const { data, error } = await db
+		.from('tasks')
+		.select('id, title, reminder_at, is_completed')
+		.eq('user_id', userId)
+		.eq('is_completed', false)
+		.not('reminder_at', 'is', null)
+		.order('reminder_at', { ascending: true });
+
+	if (error) throw new Error(`Gagal mengambil reminders: ${error.message}`);
+	return data;
+}
+
+/**
  * Tambah task baru
  */
 export async function addTask(
@@ -61,9 +77,16 @@ export async function updateTask(
 	taskId: string,
 	updates: Record<string, unknown>
 ) {
+	const allowedUpdates: Record<string, unknown> = {};
+	if (updates.title !== undefined) allowedUpdates.title = updates.title;
+	if (updates.context !== undefined) allowedUpdates.context = updates.context;
+	if (updates.energy_level !== undefined) allowedUpdates.energy_level = updates.energy_level;
+	if (updates.is_completed !== undefined) allowedUpdates.is_completed = updates.is_completed;
+	if (updates.reminder_at !== undefined) allowedUpdates.reminder_at = updates.reminder_at;
+
 	const { data, error } = await db
 		.from('tasks')
-		.update(updates)
+		.update(allowedUpdates)
 		.eq('id', taskId)
 		.eq('user_id', userId)
 		.select()

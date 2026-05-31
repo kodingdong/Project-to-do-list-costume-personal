@@ -21,6 +21,10 @@
 	let editor: Editor | null = $state(null);
 	let isDirty = $state(false);
 
+	function isValidContent(c: unknown): boolean {
+		return c !== null && typeof c === 'object' && Object.keys(c).length > 0;
+	}
+
 	onMount(() => {
 		// PENTING: TipTap hanya boleh dijalankan di browser (client-side)
 		if (!browser) return;
@@ -35,7 +39,7 @@
 				})
 			],
 			content:
-				Object.keys(content).length > 0 ? content : '<p>Mulai menulis catatan di sini...</p>',
+				isValidContent(content) ? content : '<p>Mulai menulis catatan di sini...</p>',
 			editorProps: {
 				attributes: {
 					class: 'prose prose-invert max-w-none focus:outline-none min-h-[300px]'
@@ -59,7 +63,7 @@
 
 	// Mengekspos fungsi update ke luar (jika konten di-load asinkron)
 	$effect(() => {
-		if (editor && content && Object.keys(content).length > 0 && !isDirty) {
+		if (editor && isValidContent(content) && !isDirty) {
 			const currentJSON = editor.getJSON();
 			// Cek kasar apakah konten berbeda (mencegah loop)
 			if (JSON.stringify(currentJSON) !== JSON.stringify(content)) {

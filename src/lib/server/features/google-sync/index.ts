@@ -16,14 +16,17 @@ export const googleSyncRoutes = new Elysia({ prefix: '/google' })
 	// POST /api/google/tasks
 	.post(
 		'/tasks',
-		async ({ body }) => {
-			const { provider_token, title, notes } = body;
-			if (!provider_token) throw new Error('Provider token required');
-			return await createGoogleTask(provider_token, title, notes);
+		async ({ headers, body }) => {
+			const providerToken = headers['x-provider-token'];
+			if (!providerToken) throw new Error('Provider token required');
+			return await createGoogleTask(providerToken, body.title, body.notes);
 		},
 		{
+			headers: t.Object({
+				'x-provider-token': t.String(),
+				authorization: t.Optional(t.String())
+			}),
 			body: t.Object({
-				provider_token: t.String(),
 				title: t.String({ minLength: 1 }),
 				notes: t.Optional(t.String())
 			})
@@ -33,14 +36,17 @@ export const googleSyncRoutes = new Elysia({ prefix: '/google' })
 	// POST /api/google/calendar
 	.post(
 		'/calendar',
-		async ({ body }) => {
-			const { provider_token, title, datetime } = body;
-			if (!provider_token) throw new Error('Provider token required');
-			return await createCalendarEvent(provider_token, title, datetime);
+		async ({ headers, body }) => {
+			const providerToken = headers['x-provider-token'];
+			if (!providerToken) throw new Error('Provider token required');
+			return await createCalendarEvent(providerToken, body.title, body.datetime);
 		},
 		{
+			headers: t.Object({
+				'x-provider-token': t.String(),
+				authorization: t.Optional(t.String())
+			}),
 			body: t.Object({
-				provider_token: t.String(),
 				title: t.String({ minLength: 1 }),
 				datetime: t.String()
 			})
