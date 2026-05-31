@@ -1,0 +1,294 @@
+/* ===== FlowDo — Design System ===== */
+@import 'tailwindcss';
+
+/* ===== CSS Custom Properties (Design Tokens) ===== */
+:root {
+	/* Font */
+	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+	/* Colors — Dark Mode Premium Palette */
+	--bg-primary: #0f0f23;
+	--bg-secondary: #1a1a3e;
+	--bg-card: #1e1e42;
+	--bg-card-hover: #252560;
+	--bg-elevated: #2a2a5c;
+	--bg-input: #16163a;
+
+	--text-primary: #e8e8f0;
+	--text-secondary: #a0a0c0;
+	--text-muted: #6b6b8d;
+	--text-placeholder: #4a4a6a;
+
+	/* Accent Colors */
+	--accent-primary: #6c63ff;
+	--accent-primary-hover: #7b73ff;
+	--accent-primary-glow: rgba(108, 99, 255, 0.3);
+	--accent-secondary: #00d4aa;
+	--accent-secondary-glow: rgba(0, 212, 170, 0.2);
+	--accent-danger: #ff6b6b;
+	--accent-danger-hover: #ff8585;
+	--accent-warning: #ffd93d;
+	--accent-info: #4ecdc4;
+
+	/* Gradients */
+	--gradient-primary: linear-gradient(135deg, #6c63ff 0%, #a855f7 100%);
+	--gradient-secondary: linear-gradient(135deg, #00d4aa 0%, #4ecdc4 100%);
+	--gradient-warm: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+	--gradient-bg: linear-gradient(180deg, #0f0f23 0%, #1a1a3e 100%);
+
+	/* Borders */
+	--border-subtle: rgba(108, 99, 255, 0.15);
+	--border-active: rgba(108, 99, 255, 0.4);
+
+	/* Shadows */
+	--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+	--shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+	--shadow-glow: 0 0 20px var(--accent-primary-glow);
+
+	/* Border Radius */
+	--radius-sm: 8px;
+	--radius-md: 12px;
+	--radius-lg: 16px;
+	--radius-xl: 24px;
+	--radius-full: 9999px;
+
+	/* Transitions */
+	--transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+	--transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+	--transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+	/* Nav */
+	--nav-height: 72px;
+	--header-height: 56px;
+}
+
+/* ===== Base Styles ===== */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+html {
+	font-family: var(--font-sans);
+	background: var(--bg-primary);
+	color: var(--text-primary);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+body {
+	min-height: 100dvh;
+	background: var(--gradient-bg);
+}
+
+/* ===== Scrollbar Styling ===== */
+::-webkit-scrollbar {
+	width: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--text-muted);
+	border-radius: var(--radius-full);
+}
+
+/* ===== Glassmorphism Card ===== */
+.glass-card {
+	background: rgba(30, 30, 66, 0.6);
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-lg);
+	transition: all var(--transition-normal);
+}
+
+.glass-card:hover {
+	border-color: var(--border-active);
+	box-shadow: var(--shadow-glow);
+	transform: translateY(-1px);
+}
+
+/* ===== Button Base ===== */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 10px 20px;
+	border: none;
+	border-radius: var(--radius-md);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all var(--transition-fast);
+	outline: none;
+	position: relative;
+	overflow: hidden;
+}
+
+.btn::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: white;
+	opacity: 0;
+	transition: opacity var(--transition-fast);
+}
+
+.btn:active::after {
+	opacity: 0.1;
+}
+
+.btn-primary {
+	background: var(--gradient-primary);
+	color: white;
+	box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+	box-shadow: var(--shadow-glow);
+	transform: translateY(-1px);
+}
+
+.btn-secondary {
+	background: var(--bg-elevated);
+	color: var(--text-primary);
+	border: 1px solid var(--border-subtle);
+}
+
+.btn-secondary:hover {
+	border-color: var(--border-active);
+	background: var(--bg-card-hover);
+}
+
+.btn-danger {
+	background: rgba(255, 107, 107, 0.15);
+	color: var(--accent-danger);
+	border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+.btn-danger:hover {
+	background: rgba(255, 107, 107, 0.25);
+	border-color: rgba(255, 107, 107, 0.4);
+}
+
+.btn-ghost {
+	background: transparent;
+	color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+	background: rgba(108, 99, 255, 0.1);
+	color: var(--text-primary);
+}
+
+.btn-icon {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	border-radius: var(--radius-full);
+}
+
+/* ===== Input Styles ===== */
+.input {
+	width: 100%;
+	padding: 12px 16px;
+	background: var(--bg-input);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	font-size: 14px;
+	outline: none;
+	transition: all var(--transition-fast);
+}
+
+.input::placeholder {
+	color: var(--text-placeholder);
+}
+
+.input:focus {
+	border-color: var(--accent-primary);
+	box-shadow: 0 0 0 3px var(--accent-primary-glow);
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes pulse-glow {
+	0%,
+	100% {
+		box-shadow: 0 0 8px var(--accent-primary-glow);
+	}
+	50% {
+		box-shadow: 0 0 20px var(--accent-primary-glow);
+	}
+}
+
+@keyframes shimmer {
+	0% {
+		background-position: -200% 0;
+	}
+	100% {
+		background-position: 200% 0;
+	}
+}
+
+.animate-fade-in {
+	animation: fadeIn var(--transition-normal) ease-out;
+}
+
+.animate-slide-up {
+	animation: slideUp var(--transition-slow) ease-out;
+}
+
+/* ===== Badge ===== */
+.badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 10px;
+	border-radius: var(--radius-full);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+}
+
+.badge-primary {
+	background: rgba(108, 99, 255, 0.15);
+	color: var(--accent-primary);
+}
+
+.badge-success {
+	background: rgba(0, 212, 170, 0.15);
+	color: var(--accent-secondary);
+}
+
+.badge-danger {
+	background: rgba(255, 107, 107, 0.15);
+	color: var(--accent-danger);
+}
