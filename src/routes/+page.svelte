@@ -42,6 +42,24 @@
 		}
 	}
 
+	async function processItem(id: string, target: 'note' | 'task') {
+		const oldItems = [...items];
+		items = items.filter((item) => item.id !== id);
+		
+		try {
+			const res = await fetch(`/api/inbox/${id}/process`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ target })
+			});
+			if (!res.ok) throw new Error('Failed');
+			addToast(`Berhasil mengubah jadi ${target}`, 'success');
+		} catch {
+			items = oldItems;
+			addToast('Gagal memproses item', 'error');
+		}
+	}
+
 	function timeAgo(d: string): string {
 		const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
 		if (m < 1) return 'Baru saja';
@@ -110,11 +128,15 @@
 							</div>
 							<p class="item-text">{item.content}</p>
 						</div>
-						<button
-							class="btn btn-icon btn-danger del-btn"
-							onclick={() => deleteItem(item.id)}
-							title="Hapus">🗑️</button
-						>
+						<div class="item-actions">
+							<button class="btn btn-sm btn-ghost process-btn" onclick={() => processItem(item.id, 'note')} title="Jadikan Note">📝</button>
+							<button class="btn btn-sm btn-ghost process-btn" onclick={() => processItem(item.id, 'task')} title="Jadikan Task">✅</button>
+							<button
+								class="btn btn-icon btn-danger del-btn"
+								onclick={() => deleteItem(item.id)}
+								title="Hapus">🗑️</button
+							>
+						</div>
 					</div>
 				{/each}
 			</div>
@@ -174,12 +196,18 @@
 		line-height: 1.5;
 		word-break: break-word;
 	}
-	.del-btn {
+	.item-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
 		flex-shrink: 0;
-		font-size: 16px;
-		opacity: 0;
-		transition: opacity var(--transition-fast);
 	}
+	.process-btn, .del-btn {
+		opacity: 0;
+		transition: opacity var(--transition-fast), background var(--transition-fast);
+		font-size: 14px;
+	}
+	.inbox-item:hover .process-btn,
 	.inbox-item:hover .del-btn {
 		opacity: 1;
 	}

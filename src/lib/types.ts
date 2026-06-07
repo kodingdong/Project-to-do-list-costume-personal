@@ -32,6 +32,11 @@ export interface Note {
 	title: string;
 	body: unknown;
 	updated_at: string;
+	folder_id?: string | null;
+	is_pinned?: boolean;
+	summary?: string | null;
+	folders?: { name: string } | null;
+	note_tags?: { tag_id: string }[];
 }
 
 export interface Quote {
@@ -45,4 +50,19 @@ export interface InboxItem {
 	content: string;
 	type: 'text' | 'audio';
 	created_at: string;
+}
+
+export interface Folder {
+	id: string;
+	name: string;
+	icon: string | null;
+	para_type: 'project' | 'area' | 'resource' | 'archive';
+	parent_id: string | null;
+	sort_order: number;
+}
+
+export interface Tag {
+	id: string;
+	name: string;
+	color: string | null;
 }

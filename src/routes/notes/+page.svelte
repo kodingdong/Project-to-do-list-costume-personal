@@ -1,39 +1,83 @@
 <!--
-  Notes Page — Manajemen catatan dengan TipTap Block Editor
+  Notes Page — Manajemen catatan dengan TipTap Block Editor & Second Brain
 -->
 <script lang="ts">
 	import { page } from '$app/stores';
 	import BlockEditor from '$lib/components/BlockEditor.svelte';
-	import MotivationWidget from '$lib/components/MotivationWidget.svelte';
+	import FolderTree from '$lib/components/FolderTree.svelte';
+	import SearchBar from '$lib/components/SearchBar.svelte';
+	import TagPicker from '$lib/components/TagPicker.svelte';
 	import { resolveRoute } from '$app/paths';
 
-	import type { Note } from '$lib/types';
+	import type { Note, Folder, Tag } from '$lib/types';
 	import { addToast } from '$lib/stores/toast';
 
 	let notes = $state<Note[]>([]);
+	let folders = $state<Folder[]>([]);
+	let tags = $state<Tag[]>([]);
 	let isLoading = $state(true);
 	let selectedNote = $state<Note | null>(null);
+
+	// Search & Filter State
+	let searchQuery = $state('');
+	let selectedFolderId = $state<string | null>(null);
+	let selectedFilterTagIds = $state<string[]>([]);
 
 	// State form note baru
 	let newTitle = $state('');
 	let isAdding = $state(false);
 
-	async function fetchNotes() {
+	async function fetchBrainData() {
 		try {
 			isLoading = true;
-			const res = await fetch('/api/notes');
-			const data = res.ok ? await res.json() : null;
-			const error = !res.ok;
-			if (!error) {
-				notes = (data as Note[]) || [];
-				// Auto-select note pertama jika tidak ada yang dipilih
+			const [fRes, tRes] = await Promise.all([
+				fetch('/api/folders'),
+				fetch('/api/tags')
+			]);
+			if (fRes.ok) folders = await fRes.json();
+			if (tRes.ok) tags = await tRes.json();
+			
+			await performSearch();
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function performSearch() {
+		try {
+			const params = new URLSearchParams();
+			if (searchQuery) params.set('q', searchQuery);
+			if (selectedFolderId) params.set('folder', selectedFolderId);
+			if (selectedFilterTagIds.length > 0) params.set('tags', selectedFilterTagIds.join(','));
+
+			const res = await fetch(`/api/search?${params.toString()}`);
+			if (res.ok) {
+				notes = await res.json();
+				// Update selectedNote if the current one is filtered out
+				if (selectedNote && !notes.find(n => n.id === selectedNote?.id)) {
+					selectedNote = null;
+				}
 				if (!selectedNote && notes.length > 0) {
 					selectedNote = notes[0];
 				}
 			}
-		} finally {
-			isLoading = false;
+		} catch (e) {
+			console.error(e);
 		}
+	}
+
+	function handleFolderSelect(folderId: string | null) {
+		selectedFolderId = folderId;
+		performSearch();
+	}
+
+	function toggleFilterTag(tagId: string) {
+		if (selectedFilterTagIds.includes(tagId)) {
+			selectedFilterTagIds = selectedFilterTagIds.filter((id) => id !== tagId);
+		} else {
+			selectedFilterTagIds = [...selectedFilterTagIds, tagId];
+		}
+		performSearch();
 	}
 
 	async function addNote() {
@@ -43,7 +87,11 @@
 			const res = await fetch('/api/notes', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title: newTitle.trim(), body: {} })
+				body: JSON.stringify({ 
+					title: newTitle.trim(), 
+					body: {},
+					folder_id: selectedFolderId 
+				})
 			});
 			const data = res.ok ? await res.json() : null;
 			const error = !res.ok;
@@ -61,27 +109,21 @@
 		const oldNotes = [...notes];
 		const oldSelected = selectedNote;
 
-		// Optimistic update
 		notes = notes.filter((n) => n.id !== id);
 		if (selectedNote?.id === id) {
 			selectedNote = notes.length > 0 ? notes[0] : null;
 		}
 
 		const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
-		const error = !res.ok;
-		
-		if (error) {
-			// Rollback
+		if (!res.ok) {
 			notes = oldNotes;
 			selectedNote = oldSelected;
-			addToast('Gagal menghapus catatan. Silakan coba lagi.', 'error');
+			addToast('Gagal menghapus catatan.', 'error');
 		}
 	}
 
 	async function saveNoteContent(json: unknown) {
 		if (!selectedNote) return;
-
-		// Optimistic UI
 		const oldBody = selectedNote.body;
 		selectedNote.body = json;
 
@@ -90,16 +132,40 @@
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ body: json })
 		});
-		const error = !res.ok;
-
-		if (error) {
-			// Rollback
+		if (!res.ok) {
 			selectedNote.body = oldBody;
-			addToast('Gagal menyimpan catatan. Silakan coba lagi.', 'error');
+			addToast('Gagal menyimpan catatan.', 'error');
 		} else {
-			// Update daftar notes tanpa perlu fetch ulang semua (hanya update_at)
 			selectedNote.updated_at = new Date().toISOString();
+			notes = [...notes];
+		}
+	}
+
+	async function toggleNoteTag(tagId: string) {
+		if (!selectedNote) return;
+		const hasTag = selectedNote.note_tags?.some(nt => nt.tag_id === tagId);
+		const oldNoteTags = selectedNote.note_tags || [];
+		
+		try {
+			if (hasTag) {
+				selectedNote.note_tags = oldNoteTags.filter(nt => nt.tag_id !== tagId);
+				await fetch(`/api/notes/${selectedNote.id}/tags`, {
+					method: 'DELETE',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ tag_id: tagId })
+				});
+			} else {
+				selectedNote.note_tags = [...oldNoteTags, { tag_id: tagId }];
+				await fetch(`/api/notes/${selectedNote.id}/tags`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ tag_id: tagId })
+				});
+			}
 			notes = [...notes]; // Memicu reaktivitas
+		} catch (e) {
+			selectedNote.note_tags = oldNoteTags;
+			addToast('Gagal update tag', 'error');
 		}
 	}
 
@@ -111,91 +177,99 @@
 	}
 
 	$effect(() => {
-		if ($page.data?.user) fetchNotes();
+		if ($page.data?.user) fetchBrainData();
 		else isLoading = false;
 	});
 </script>
 
 <svelte:head>
-	<title>Notes — FlowDo</title>
+	<title>Brain — FlowDo</title>
 </svelte:head>
 
 <div class="notes-layout">
-	<!-- Sidebar: Daftar Notes -->
+	<!-- Sidebar: Second Brain Navigation -->
 	<aside class="notes-sidebar glass-card">
 		<div class="sidebar-header">
-			<h2 class="sidebar-title">📝 Notes</h2>
-			<div class="add-note-box">
-				<input
-					type="text"
-					class="input input-sm"
-					placeholder="Judul catatan baru..."
-					bind:value={newTitle}
-					onkeydown={handleKeydown}
-				/>
-				<button
-					class="btn btn-primary btn-sm"
-					onclick={addNote}
-					disabled={!newTitle.trim() || isAdding}
-				>
-					＋
-				</button>
-			</div>
+			<h2 class="sidebar-title">🧠 Second Brain</h2>
+			<SearchBar bind:searchQuery onSearch={performSearch} />
 		</div>
 
-		<div class="notes-list">
-			{#if isLoading}
-				<div class="note-skel"></div>
-				<div class="note-skel"></div>
-			{:else if !$page.data?.user}
-				<div class="empty-state">
-					<p>Login untuk melihat notes.</p>
-					<a href={resolveRoute('/login')} class="btn btn-primary btn-sm mt-2">Login</a>
-				</div>
-			{:else if notes.length === 0}
-				<div class="empty-state">
-					<p>Belum ada catatan.</p>
-				</div>
-			{:else}
-				{#each notes as note (note.id)}
-					<div
-						class="note-item"
-						class:active={selectedNote?.id === note.id}
-						onclick={() => (selectedNote = note)}
-						role="button"
-						tabindex="0"
-						onkeydown={(e) => e.key === 'Enter' && (selectedNote = note)}
+		<div class="sidebar-content">
+			<FolderTree 
+				folders={folders} 
+				selectedId={selectedFolderId} 
+				onSelect={handleFolderSelect} 
+			/>
+
+			<TagPicker 
+				availableTags={tags} 
+				selectedTagIds={selectedFilterTagIds} 
+				onToggleTag={toggleFilterTag} 
+			/>
+
+			<div class="notes-list-section">
+				<div class="section-title">Notes List</div>
+				<div class="add-note-box">
+					<input
+						type="text"
+						class="input input-sm"
+						placeholder="Judul catatan baru..."
+						bind:value={newTitle}
+						onkeydown={handleKeydown}
+					/>
+					<button
+						class="btn btn-primary btn-sm"
+						onclick={addNote}
+						disabled={!newTitle.trim() || isAdding}
 					>
-						<div class="note-info">
-							<p class="note-title">{note.title}</p>
-							<p class="note-date">
-								{new Date(note.updated_at).toLocaleDateString('id-ID', {
-									day: 'numeric',
-									month: 'short'
-								})}
-							</p>
-						</div>
-						<button
-							class="btn-icon btn-danger note-del"
-							onclick={(e) => {
-								e.stopPropagation();
-								deleteNote(note.id);
-							}}
-							title="Hapus"
-						>
-							✕
-						</button>
-					</div>
-				{/each}
-			{/if}
-		</div>
+						＋
+					</button>
+				</div>
 
-		<!-- Motivation Widget diletakkan di bawah sidebar -->
-		<div class="widget-wrapper">
-			<MotivationWidget />
-			<a href={resolveRoute('/notes/quotes')} class="btn btn-ghost btn-sm full-w mt-2"
-				>Kelola Quotes →</a
-			>
+				<div class="notes-list">
+					{#if isLoading}
+						<div class="note-skel"></div>
+						<div class="note-skel"></div>
+					{:else if !$page.data?.user}
+						<div class="empty-state">
+							<a href={resolveRoute('/login')} class="btn btn-primary btn-sm mt-2">Login</a>
+						</div>
+					{:else if notes.length === 0}
+						<div class="empty-state">Belum ada catatan.</div>
+					{:else}
+						{#each notes as note (note.id)}
+							<div
+								class="note-item"
+								class:active={selectedNote?.id === note.id}
+								onclick={() => (selectedNote = note)}
+								role="button"
+								tabindex="0"
+								onkeydown={(e) => e.key === 'Enter' && (selectedNote = note)}
+							>
+								<div class="note-info">
+									<p class="note-title">{note.title}</p>
+									<p class="note-date">
+										{new Date(note.updated_at).toLocaleDateString('id-ID', {
+											day: 'numeric',
+											month: 'short'
+										})}
+									</p>
+								</div>
+								<button
+									class="btn-icon btn-danger note-del"
+									onclick={(e) => {
+										e.stopPropagation();
+										deleteNote(note.id);
+									}}
+									title="Hapus"
+								>
+									✕
+								</button>
+							</div>
+						{/each}
+					{/if}
+				</div>
+			</div>
 		</div>
 	</aside>
 
@@ -204,21 +278,30 @@
 		{#if selectedNote}
 			<div class="editor-header animate-fade-in">
 				<h1 class="main-title">{selectedNote.title}</h1>
-				<p class="main-meta">
-					Terakhir diubah: {new Date(selectedNote.updated_at).toLocaleString('id-ID')}
-				</p>
+				<div class="main-meta-row">
+					<p class="main-meta">
+						Terakhir diubah: {new Date(selectedNote.updated_at).toLocaleString('id-ID')}
+					</p>
+					{#if selectedNote.folders}
+						<span class="folder-badge">📁 {selectedNote.folders.name}</span>
+					{/if}
+				</div>
+				<TagPicker 
+					availableTags={tags} 
+					selectedTagIds={selectedNote.note_tags?.map(t => t.tag_id) || []} 
+					onToggleTag={toggleNoteTag} 
+				/>
 			</div>
-			<!-- BlockEditor dirender ulang ketika selectedNote berubah (menggunakan {#key}) -->
 			{#key selectedNote.id}
-				<div class="animate-fade-in">
+				<div class="animate-fade-in editor-wrapper">
 					<BlockEditor content={selectedNote.body} onsave={saveNoteContent} />
 				</div>
 			{/key}
 		{:else if !isLoading && $page.data?.user}
 			<div class="empty-editor glass-card animate-fade-in">
-				<span class="empty-icon">✍️</span>
-				<h2>Pilih atau buat catatan baru</h2>
-				<p>Catatanmu tersimpan otomatis dan format menggunakan blok (mirip Notion).</p>
+				<span class="empty-icon">🧠</span>
+				<h2>Second Brain Anda</h2>
+				<p>Pilih note dari daftar atau buat baru.</p>
 			</div>
 		{/if}
 	</main>
@@ -227,10 +310,10 @@
 <style>
 	.notes-layout {
 		display: grid;
-		grid-template-columns: 300px 1fr;
+		grid-template-columns: 320px 1fr;
 		gap: 20px;
 		align-items: start;
-		height: calc(100vh - 180px); /* Menyesuaikan dengan tinggi layar */
+		height: calc(100vh - 180px);
 	}
 
 	@media (max-width: 768px) {
@@ -238,13 +321,11 @@
 			grid-template-columns: 1fr;
 			height: auto;
 		}
-
 		.notes-sidebar {
-			max-height: 300px;
+			max-height: 400px;
 		}
 	}
 
-	/* Sidebar */
 	.notes-sidebar {
 		display: flex;
 		flex-direction: column;
@@ -256,33 +337,48 @@
 	.sidebar-header {
 		padding: 16px;
 		border-bottom: 1px solid var(--border-subtle);
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 	}
 
 	.sidebar-title {
 		font-size: 18px;
 		font-weight: 700;
-		margin-bottom: 12px;
 	}
 
-	.add-note-box {
+	.sidebar-content {
+		flex: 1;
+		overflow-y: auto;
+		padding: 16px 8px;
 		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.notes-list-section {
+		margin-top: 16px;
+		border-top: 1px solid var(--border-subtle);
+		padding-top: 16px;
+		display: flex;
+		flex-direction: column;
 		gap: 8px;
 	}
 
-	.input-sm {
-		padding: 6px 12px;
-		font-size: 13px;
+	.section-title {
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		padding: 0 8px;
 	}
 
-	.btn-sm {
-		padding: 6px 12px;
-		font-size: 13px;
-	}
+	.add-note-box { display: flex; gap: 8px; padding: 0 8px; }
+	.input-sm { padding: 6px 12px; font-size: 13px; flex: 1; }
+	.btn-sm { padding: 6px 12px; font-size: 13px; }
 
 	.notes-list {
-		flex: 1;
-		overflow-y: auto;
-		padding: 8px;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
@@ -292,55 +388,31 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 10px 12px;
+		padding: 8px 12px;
 		border-radius: var(--radius-sm);
 		cursor: pointer;
 		transition: all var(--transition-fast);
 		border: 1px solid transparent;
 	}
 
-	.note-item:hover {
-		background: rgba(108, 99, 255, 0.05);
-	}
-
+	.note-item:hover { background: rgba(108, 99, 255, 0.05); }
 	.note-item.active {
 		background: rgba(108, 99, 255, 0.1);
 		border-color: rgba(108, 99, 255, 0.2);
 	}
 
-	.note-info {
-		flex: 1;
-		min-width: 0;
-	}
-
+	.note-info { flex: 1; min-width: 0; }
 	.note-title {
-		font-size: 14px;
+		font-size: 13px;
 		font-weight: 600;
-		margin-bottom: 4px;
+		margin-bottom: 2px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-
-	.note-date {
-		font-size: 11px;
-		color: var(--text-muted);
-	}
-
-	.note-del {
-		opacity: 0;
-		font-size: 12px;
-		padding: 4px 8px;
-	}
-
-	.note-item:hover .note-del {
-		opacity: 1;
-	}
-
-	.widget-wrapper {
-		padding: 16px;
-		border-top: 1px solid var(--border-subtle);
-	}
+	.note-date { font-size: 11px; color: var(--text-muted); }
+	.note-del { opacity: 0; font-size: 12px; padding: 4px 8px; }
+	.note-item:hover .note-del { opacity: 1; }
 
 	/* Main Area */
 	.notes-main {
@@ -352,54 +424,24 @@
 	}
 
 	.editor-header {
-		padding: 0 4px;
-	}
-
-	.main-title {
-		font-size: 24px;
-		font-weight: 800;
-		margin-bottom: 4px;
-	}
-
-	.main-meta {
-		font-size: 12px;
-		color: var(--text-secondary);
-	}
-
-	.empty-editor {
+		padding: 0 16px;
 		display: flex;
 		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		text-align: center;
-		padding: 40px;
-		gap: 12px;
+		gap: 8px;
 	}
 
-	.empty-icon {
-		font-size: 48px;
-	}
+	.main-title { font-size: 24px; font-weight: 800; }
+	.main-meta-row { display: flex; align-items: center; gap: 12px; }
+	.main-meta { font-size: 12px; color: var(--text-secondary); }
+	.folder-badge { font-size: 11px; background: var(--bg-elevated); padding: 2px 8px; border-radius: 12px; color: var(--text-muted); }
 
-	.empty-state {
-		text-align: center;
-		padding: 20px;
-		color: var(--text-muted);
-		font-size: 13px;
-	}
+	.editor-wrapper { flex: 1; overflow-y: auto; padding-top: 16px; }
 
-	.note-skel {
-		height: 50px;
-		background: var(--bg-input);
-		border-radius: var(--radius-sm);
-		animation: shimmer 1.5s infinite;
+	.empty-editor {
+		display: flex; flex-direction: column; align-items: center; justify-content: center;
+		height: 100%; text-align: center; padding: 40px; gap: 12px;
 	}
-
-	.full-w {
-		width: 100%;
-	}
-
-	.mt-2 {
-		margin-top: 8px;
-	}
+	.empty-icon { font-size: 48px; }
+	.empty-state { text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px; }
+	.note-skel { height: 50px; background: var(--bg-input); border-radius: var(--radius-sm); animation: shimmer 1.5s infinite; }
 </style>
