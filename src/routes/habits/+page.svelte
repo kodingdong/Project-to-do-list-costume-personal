@@ -11,12 +11,10 @@
   Menggunakan Svelte 5 Runes ($state, $derived, $effect)
 -->
 <script lang="ts">
-	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
 	import type { Habit } from '$lib/types';
-	import { getAuthHeaders } from '$lib/utils/auth';
 	import { addToast } from '$lib/stores/toast';
 
 	// ===== State =====
@@ -67,7 +65,9 @@
 	async function fetchHabits() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.habits.get({ headers: getAuthHeaders() });
+			const res = await fetch('/api/habits');
+			const data = res.ok ? await res.json() : null;
+			const error = !res.ok;
 			if (!error) habits = (data as Habit[]) || [];
 		} catch {
 			/* silently fail */
@@ -80,10 +80,12 @@
 		if (!newTitle.trim() || isSubmitting) return;
 		isSubmitting = true;
 		try {
-			const { error } = await api.api.habits.post(
-				{ title: newTitle.trim() },
-				{ headers: getAuthHeaders() }
-			);
+			const res = await fetch('/api/habits', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ title: newTitle.trim() })
+			});
+			const error = !res.ok;
 			if (!error) {
 				newTitle = '';
 				showForm = false;
@@ -104,9 +106,13 @@
 			habit.streak_count += 1;
 		}
 
-		const { data, error } = await api.api
-			.habits({ id: habit.id })
-			.put({ is_done_today: newStatus }, { headers: getAuthHeaders() });
+		const res = await fetch(`/api/habits/${habit.id}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ is_done_today: newStatus })
+		});
+		const data = res.ok ? await res.json() : null;
+		const error = !res.ok;
 
 		if (error) {
 			// Rollback
@@ -125,7 +131,8 @@
 	async function deleteHabit(habitId: string) {
 		const oldHabits = [...habits];
 		habits = habits.filter((h) => h.id !== habitId);
-		const { error } = await api.api.habits({ id: habitId }).delete({ headers: getAuthHeaders() });
+		const res = await fetch(`/api/habits/${habitId}`, { method: 'DELETE' });
+		const error = !res.ok;
 		if (error) {
 			habits = oldHabits; // rollback
 			addToast('Gagal menghapus habit. Silakan coba lagi.', 'error');
@@ -251,7 +258,7 @@
 			<div class="empty glass-card">
 				<span class="empty-ico">🔒</span>
 				<p class="empty-t">Login untuk mulai</p>
-				<a href={resolveRoute('/login', {})} class="btn btn-primary">Login</a>
+				<a href={resolveRoute('/login')} class="btn btn-primary">Login</a>
 			</div>
 		{:else if habits.length === 0}
 			<div class="empty glass-card">

@@ -2,7 +2,6 @@
   MotivationWidget — Widget Kutipan Dinamis (Tahap 3)
 -->
 <script lang="ts">
-	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 
@@ -18,9 +17,9 @@
 			}
 
 			try {
-				const { data, error } = await api.api.quotes.get({
-					headers: { Authorization: `Bearer ${token}` }
-				});
+				const res = await fetch('/api/quotes');
+				const data = res.ok ? await res.json() : null;
+				const error = !res.ok;
 
 				if (!error && Array.isArray(data) && data.length > 0) {
 					// Pilih acak 1 kutipan

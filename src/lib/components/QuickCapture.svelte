@@ -9,7 +9,6 @@
   Menggunakan Svelte 5 Runes ($state, $derived)
 -->
 <script lang="ts">
-	import { api } from '$lib/eden';
 
 	// Props dari parent
 	let { onItemAdded = () => {} }: { onItemAdded?: () => void } = $props();
@@ -23,7 +22,6 @@
 	// Derived
 	let canSubmit = $derived(content.trim().length > 0 && !isSubmitting);
 
-	import { getAuthHeaders } from '$lib/utils/auth';
 
 	/**
 	 * Submit inbox item via API
@@ -35,13 +33,12 @@
 		errorMessage = '';
 
 		try {
-			const { error } = await api.api.inbox.post(
-				{
-					content: content.trim(),
-					type: 'text'
-				},
-				{ headers: getAuthHeaders() }
-			);
+			const res = await fetch('/api/inbox', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ content: content.trim(), type: 'text' })
+			});
+			const error = !res.ok;
 
 			if (error) {
 				errorMessage = 'Gagal menyimpan. Pastikan kamu sudah login.';
@@ -69,7 +66,7 @@
 		const SpeechRecognition =
 			(window as unknown as { SpeechRecognition: unknown }).SpeechRecognition ||
 			(window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition;
-		const recognition = new SpeechRecognition();
+		const recognition = new (SpeechRecognition as any)();
 
 		recognition.lang = 'id-ID'; // Bahasa Indonesia
 		recognition.interimResults = false;

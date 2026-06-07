@@ -18,7 +18,7 @@
 
 	// Data dari layout load
 	let userData = $derived($page.data?.user);
-	let accessToken = $derived($page.data?.session?.access_token || '');
+
 
 	// Navigasi items
 	const navItems = [
@@ -50,8 +50,8 @@
 
 	// Aktifkan reminder system saat user login
 	$effect(() => {
-		if (browser && userData && accessToken) {
-			startReminders(accessToken);
+		if (browser && userData) {
+			startReminders();
 		}
 		return () => {
 			if (browser) stopReminders();
@@ -63,7 +63,7 @@
 	<!-- Header -->
 	<header class="app-header">
 		<div class="header-content">
-			<a href={resolveRoute('/', {})} class="logo">
+			<a href={resolveRoute('/')} class="logo">
 				<span class="logo-icon">⚡</span>
 				<span class="logo-text">FlowDo</span>
 			</a>
@@ -91,7 +91,7 @@
 	<nav class="bottom-nav" id="bottom-navigation">
 		{#each navItems as item (item.href)}
 			<a
-				href={resolveRoute(item.href, {})}
+				href={item.href}
 				class="nav-item"
 				class:active={isActive(item.href)}
 				id="nav-{item.label.toLowerCase()}"

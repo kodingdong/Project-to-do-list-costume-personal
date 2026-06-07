@@ -8,7 +8,7 @@
  * - Handle permission request dan tab visibility
  */
 
-import { api } from '$lib/eden';
+
 
 // Set untuk melacak task yang sudah dinotifikasi dan timestampnya (mencegah duplikat & leak)
 const notifiedTaskIds = new Map<string, number>();
@@ -59,11 +59,11 @@ function showNotification(title: string, body: string) {
 /**
  * Cek tasks yang punya reminder dan waktunya sudah dekat
  */
-async function checkReminders(accessToken: string) {
+async function checkReminders() {
 	try {
-		const { data, error } = await api.api.tasks.reminders.get({
-			headers: { Authorization: `Bearer ${accessToken}` }
-		});
+		const res = await fetch('/api/tasks/reminders');
+		const data = res.ok ? await res.json() : null;
+		const error = !res.ok;
 
 		if (error || !data) return;
 
@@ -99,7 +99,7 @@ async function checkReminders(accessToken: string) {
  * Mulai sistem reminder polling
  * @param accessToken - Supabase access token untuk auth API
  */
-export function startReminders(accessToken: string) {
+export function startReminders() {
 	// Hentikan polling sebelumnya jika ada
 	stopReminders();
 
@@ -107,11 +107,11 @@ export function startReminders(accessToken: string) {
 	requestNotificationPermission();
 
 	// Cek langsung saat pertama kali
-	checkReminders(accessToken);
+	checkReminders();
 
 	// Polling setiap 60 detik
 	intervalId = setInterval(() => {
-		checkReminders(accessToken);
+		checkReminders();
 	}, 60000);
 }
 

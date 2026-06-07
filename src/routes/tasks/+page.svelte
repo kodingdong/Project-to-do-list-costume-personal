@@ -11,12 +11,10 @@
   Menggunakan Svelte 5 Runes ($state, $derived, $effect)
 -->
 <script lang="ts">
-	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
 	import type { Task, SubTask } from '$lib/types';
-	import { getAuthHeaders } from '$lib/utils/auth';
 	import { addToast } from '$lib/stores/toast';
 
 	// ===== State =====
@@ -76,7 +74,9 @@
 	async function fetchTasks() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.tasks.get({ headers: getAuthHeaders() });
+			const res = await fetch('/api/tasks');
+			const data = res.ok ? await res.json() : null;
+			const error = !res.ok;
 			if (!error) tasks = (data as Task[]) || [];
 		} catch {
 			/* silently fail */
@@ -89,45 +89,18 @@
 		if (!newTitle.trim() || isSubmitting) return;
 		isSubmitting = true;
 		try {
-			const { error } = await api.api.tasks.post(
-				{
+			const res = await fetch('/api/tasks', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
 					title: newTitle.trim(),
 					context: newContext,
 					energy_level: newEnergy,
 					reminder_at: newReminder || null
-				},
-				{ headers: getAuthHeaders() }
-			);
+				})
+			});
+			const error = !res.ok;
 			if (!error) {
-				// Google Sync (Task 4.2)
-				const providerToken = $page.data?.session?.provider_token;
-				if (providerToken) {
-					// 1. Buat di Google Tasks
-					api.api.google.tasks
-						.post(
-							{
-								title: newTitle.trim(),
-								notes: `Context: ${newContext}`
-							},
-							{ headers: { ...getAuthHeaders(), 'x-provider-token': providerToken } }
-						)
-						.catch(() => {
-							/* silently fail */
-						});
-
-					// 2. Buat di Google Calendar jika ada reminder
-					if (newReminder) {
-						api.api.google.calendar
-							.post(
-								{ title: newTitle.trim(), datetime: newReminder },
-								{ headers: { ...getAuthHeaders(), 'x-provider-token': providerToken } }
-							)
-							.catch(() => {
-								/* silently fail */
-							});
-					}
-				}
-
 				newTitle = '';
 				newReminder = '';
 				showForm = false;
@@ -142,7 +115,12 @@
 		const oldStatus = task.is_completed;
 		const newStatus = !task.is_completed;
 		task.is_completed = newStatus;
-		const { error } = await api.api.tasks({ id: task.id }).put({ is_completed: newStatus }, { headers: getAuthHeaders() });
+		const res = await fetch(`/api/tasks/${task.id}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ is_completed: newStatus })
+		});
+		const error = !res.ok;
 		if (error) {
 			task.is_completed = oldStatus; // rollback
 			addToast('Gagal mengubah status task. Silakan coba lagi.', 'error');
@@ -152,7 +130,8 @@
 	async function deleteTask(taskId: string) {
 		const oldTasks = [...tasks];
 		tasks = tasks.filter((t) => t.id !== taskId);
-		const { error } = await api.api.tasks({ id: taskId }).delete({ headers: getAuthHeaders() });
+		const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+		const error = !res.ok;
 		if (error) {
 			tasks = oldTasks; // rollback
 			addToast('Gagal menghapus task. Silakan coba lagi.', 'error');
@@ -161,9 +140,13 @@
 
 	async function addSubTask(taskId: string) {
 		if (!newSubTaskTitle.trim()) return;
-		const { data, error } = await api.api
-			.tasks({ id: taskId })
-			.subtasks.post({ title: newSubTaskTitle.trim() }, { headers: getAuthHeaders() });
+		const res = await fetch(`/api/tasks/${taskId}/subtasks`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ title: newSubTaskTitle.trim() })
+		});
+		const data = res.ok ? await res.json() : null;
+		const error = !res.ok;
 		if (!error && data) {
 			const task = tasks.find((t) => t.id === taskId);
 			if (task) task.sub_tasks = [...(task.sub_tasks || []), data as SubTask];
@@ -176,9 +159,12 @@
 		const oldStatus = subTask.is_completed;
 		const newStatus = !subTask.is_completed;
 		subTask.is_completed = newStatus;
-		const { error } = await api.api.tasks
-			.subtasks({ id: subTask.id })
-			.put({ is_completed: newStatus }, { headers: getAuthHeaders() });
+		const res = await fetch(`/api/tasks/${subTask.task_id || ''}/subtasks`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ subTaskId: subTask.id, is_completed: newStatus })
+		});
+		const error = !res.ok;
 		if (error) {
 			subTask.is_completed = oldStatus; // rollback
 			addToast('Gagal mengubah status sub-task. Silakan coba lagi.', 'error');
@@ -192,7 +178,12 @@
 			oldSubTasks = [...(task.sub_tasks || [])];
 			task.sub_tasks = (task.sub_tasks || []).filter((s) => s.id !== subTaskId);
 		}
-		const { error } = await api.api.tasks.subtasks({ id: subTaskId }).delete({ headers: getAuthHeaders() });
+		const res = await fetch(`/api/tasks/${taskId}/subtasks`, {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ subTaskId })
+		});
+		const error = !res.ok;
 		if (error && task) {
 			task.sub_tasks = oldSubTasks; // rollback
 			addToast('Gagal menghapus sub-task. Silakan coba lagi.', 'error');
@@ -361,7 +352,7 @@
 			<div class="empty glass-card">
 				<span class="empty-ico">🔒</span>
 				<p class="empty-t">Login untuk mulai</p>
-				<a href={resolveRoute('/login', {})} class="btn btn-primary">Login</a>
+				<a href={resolveRoute('/login')} class="btn btn-primary">Login</a>
 			</div>
 		{:else if filteredTasks.length === 0}
 			<div class="empty glass-card">

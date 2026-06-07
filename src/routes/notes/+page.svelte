@@ -2,14 +2,12 @@
   Notes Page — Manajemen catatan dengan TipTap Block Editor
 -->
 <script lang="ts">
-	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
 	import BlockEditor from '$lib/components/BlockEditor.svelte';
 	import MotivationWidget from '$lib/components/MotivationWidget.svelte';
 	import { resolveRoute } from '$app/paths';
 
 	import type { Note } from '$lib/types';
-	import { getAuthHeaders } from '$lib/utils/auth';
 	import { addToast } from '$lib/stores/toast';
 
 	let notes = $state<Note[]>([]);
@@ -23,7 +21,9 @@
 	async function fetchNotes() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.notes.get({ headers: getAuthHeaders() });
+			const res = await fetch('/api/notes');
+			const data = res.ok ? await res.json() : null;
+			const error = !res.ok;
 			if (!error) {
 				notes = (data as Note[]) || [];
 				// Auto-select note pertama jika tidak ada yang dipilih
@@ -40,10 +40,13 @@
 		if (!newTitle.trim() || isAdding) return;
 		isAdding = true;
 		try {
-			const { data, error } = await api.api.notes.post(
-				{ title: newTitle.trim(), body: {} },
-				{ headers: getAuthHeaders() }
-			);
+			const res = await fetch('/api/notes', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ title: newTitle.trim(), body: {} })
+			});
+			const data = res.ok ? await res.json() : null;
+			const error = !res.ok;
 			if (!error && data) {
 				newTitle = '';
 				notes = [data as Note, ...notes];
@@ -64,7 +67,8 @@
 			selectedNote = notes.length > 0 ? notes[0] : null;
 		}
 
-		const { error } = await api.api.notes({ id }).delete({ headers: getAuthHeaders() });
+		const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+		const error = !res.ok;
 		
 		if (error) {
 			// Rollback
@@ -81,9 +85,12 @@
 		const oldBody = selectedNote.body;
 		selectedNote.body = json;
 
-		const { error } = await api.api
-			.notes({ id: selectedNote.id })
-			.put({ body: json }, { headers: getAuthHeaders() });
+		const res = await fetch(`/api/notes/${selectedNote.id}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ body: json })
+		});
+		const error = !res.ok;
 
 		if (error) {
 			// Rollback
@@ -143,7 +150,7 @@
 			{:else if !$page.data?.user}
 				<div class="empty-state">
 					<p>Login untuk melihat notes.</p>
-					<a href={resolveRoute('/login', {})} class="btn btn-primary btn-sm mt-2">Login</a>
+					<a href={resolveRoute('/login')} class="btn btn-primary btn-sm mt-2">Login</a>
 				</div>
 			{:else if notes.length === 0}
 				<div class="empty-state">
@@ -186,7 +193,7 @@
 		<!-- Motivation Widget diletakkan di bawah sidebar -->
 		<div class="widget-wrapper">
 			<MotivationWidget />
-			<a href={resolveRoute('/notes/quotes', {})} class="btn btn-ghost btn-sm full-w mt-2"
+			<a href={resolveRoute('/notes/quotes')} class="btn btn-ghost btn-sm full-w mt-2"
 				>Kelola Quotes →</a
 			>
 		</div>

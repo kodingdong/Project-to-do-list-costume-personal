@@ -15,7 +15,7 @@
 	// Redirect jika sudah login
 	let userData = $derived($page.data?.user);
 	$effect(() => {
-		if (userData) goto(resolveRoute('/', {}));
+		if (userData) goto(resolveRoute('/'));
 	});
 
 	async function loginWithGoogle() {

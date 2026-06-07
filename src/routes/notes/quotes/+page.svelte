@@ -2,12 +2,10 @@
   Quotes Page — Manajemen Motivation Quotes (Tahap 3)
 -->
 <script lang="ts">
-	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
 	import type { Quote } from '$lib/types';
-	import { getAuthHeaders } from '$lib/utils/auth';
 	import { addToast } from '$lib/stores/toast';
 
 	let quotes = $state<Quote[]>([]);
@@ -22,7 +20,9 @@
 	async function fetchQuotes() {
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.quotes.get({ headers: getAuthHeaders() });
+			const res = await fetch('/api/quotes');
+			const data = res.ok ? await res.json() : null;
+			const error = !res.ok;
 			if (!error) quotes = (data as Quote[]) || [];
 		} finally {
 			isLoading = false;
@@ -33,13 +33,15 @@
 		if (!newContent.trim() || isSubmitting) return;
 		isSubmitting = true;
 		try {
-			const { error } = await api.api.quotes.post(
-				{
+			const res = await fetch('/api/quotes', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
 					content: newContent.trim(),
 					category: newCategory
-				},
-				{ headers: getAuthHeaders() }
-			);
+				})
+			});
+			const error = !res.ok;
 
 			if (!error) {
 				newContent = '';
@@ -56,7 +58,8 @@
 		// Optimistic update
 		quotes = quotes.filter((q) => q.id !== id);
 		
-		const { error } = await api.api.quotes({ id }).delete({ headers: getAuthHeaders() });
+		const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' });
+		const error = !res.ok;
 		
 		if (error) {
 			quotes = oldQuotes;
@@ -76,7 +79,7 @@
 
 <div class="quotes-page animate-fade-in">
 	<div class="header">
-		<a href={resolveRoute('/notes', {})} class="btn btn-ghost btn-sm back-btn">← Kembali</a>
+		<a href={resolveRoute('/notes')} class="btn btn-ghost btn-sm back-btn">← Kembali</a>
 		<h1 class="page-title">✨ Quotes</h1>
 		<p class="page-sub">Koleksi kutipan motivasi yang akan muncul acak di aplikasi.</p>
 	</div>

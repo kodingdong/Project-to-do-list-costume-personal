@@ -9,8 +9,10 @@
 import { createBrowserClient, isBrowser, parse } from '@supabase/ssr';
 import type { LayoutLoad } from './$types';
 
-const PUBLIC_SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || '';
-const PUBLIC_SUPABASE_ANON_KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+import { env } from '$env/dynamic/public';
+
+const PUBLIC_SUPABASE_URL = env.PUBLIC_SUPABASE_URL || '';
+const PUBLIC_SUPABASE_ANON_KEY = env.PUBLIC_SUPABASE_ANON_KEY || '';
 
 export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	depends('supabase:auth');
@@ -21,14 +23,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	}
 
 	const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-		global: { fetch },
-		cookies: {
-			get(key) {
-				if (!isBrowser()) return JSON.stringify(data.session);
-				const cookie = parse(document.cookie);
-				return cookie[key];
-			}
-		}
+		global: { fetch }
 	});
 
 	const {

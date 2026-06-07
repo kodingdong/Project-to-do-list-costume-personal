@@ -3,7 +3,6 @@
 -->
 <script lang="ts">
 	import QuickCapture from '$lib/components/QuickCapture.svelte';
-	import { api } from '$lib/eden';
 	import { page } from '$app/stores';
 	import { resolveRoute } from '$app/paths';
 
@@ -12,8 +11,6 @@
 	let items = $state<InboxItem[]>([]);
 	let isLoading = $state(true);
 	let userData = $derived($page.data?.user);
-
-	import { getAuthHeaders } from '$lib/utils/auth';
 	import { addToast } from '$lib/stores/toast';
 
 	async function fetchItems() {
@@ -23,7 +20,9 @@
 		}
 		try {
 			isLoading = true;
-			const { data, error } = await api.api.inbox.get({ headers: getAuthHeaders() });
+			const res = await fetch('/api/inbox');
+			const data = res.ok ? await res.json() : null;
+			const error = !res.ok;
 			if (!error) items = (data as InboxItem[]) || [];
 		} catch {
 			/* silently fail */
@@ -35,7 +34,8 @@
 	async function deleteItem(id: string) {
 		const oldItems = [...items];
 		items = items.filter((item) => item.id !== id);
-		const { error } = await api.api.inbox({ id }).delete({ headers: getAuthHeaders() });
+		const res = await fetch(`/api/inbox/${id}`, { method: 'DELETE' });
+		const error = !res.ok;
 		if (error) {
 			items = oldItems; // rollback
 			addToast('Gagal menghapus item. Silakan coba lagi.', 'error');
@@ -85,7 +85,7 @@
 			<div class="empty glass-card">
 				<span class="empty-ico">🔒</span>
 				<p class="empty-t">Login untuk mulai</p>
-				<a href={resolveRoute('/login', {})} class="btn btn-primary">Login</a>
+				<a href={resolveRoute('/login')} class="btn btn-primary">Login</a>
 			</div>
 		{:else if items.length === 0}
 			<div class="empty glass-card">
